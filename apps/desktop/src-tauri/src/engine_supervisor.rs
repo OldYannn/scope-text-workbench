@@ -45,13 +45,30 @@ impl CommandSpec {
 
     #[cfg(not(debug_assertions))]
     pub fn for_current_build() -> Self {
-        Self {
-            executable: String::new(),
-            arguments: Vec::new(),
-            environment: Vec::new(),
-            unavailable_reason: Some(
-                "Packaged Python sidecar is not configured for release builds".into(),
-            ),
+        let executable_name = if cfg!(windows) {
+            "scope-engine-dev.exe"
+        } else {
+            "scope-engine-dev"
+        };
+        match std::env::current_exe().ok().and_then(|current_exe| {
+            current_exe
+                .parent()
+                .map(|parent| parent.join(executable_name))
+        }) {
+            Some(executable) => Self {
+                executable: executable.to_string_lossy().into_owned(),
+                arguments: Vec::new(),
+                environment: Vec::new(),
+                unavailable_reason: None,
+            },
+            None => Self {
+                executable: String::new(),
+                arguments: Vec::new(),
+                environment: Vec::new(),
+                unavailable_reason: Some(
+                    "Packaged Python sidecar location could not be resolved".into(),
+                ),
+            },
         }
     }
 }

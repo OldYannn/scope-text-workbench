@@ -1,0 +1,78 @@
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+
+def rust_target_triple() -> str:
+    host_tuple = subprocess.run(
+        ["rustc", "--print", "host-tuple"],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if host_tuple.returncode == 0 and host_tuple.stdout.strip():
+        return host_tuple.stdout.strip()
+
+    verbose_version = subprocess.run(
+        ["rustc", "-vV"],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    for line in verbose_version.stdout.splitlines():
+        if line.startswith("host: "):
+            return line.removeprefix("host: ").strip()
+    raise RuntimeError("rustc did not report a host target triple")
+
+
+def build() -> Path:
+    target_triple = rust_target_triple()
+    executable_suffix = ".exe" if os.name == "nt" else ""
+    binary_name = f"scope-engine-dev-{target_triple}"
+    binaries_directory = REPOSITORY_ROOT / "apps/desktop/src-tauri/binaries"
+    build_directory = REPOSITORY_ROOT / "build/sidecar" / target_triple
+    binaries_directory.mkdir(parents=True, exist_ok=True)
+    build_directory.mkdir(parents=True, exist_ok=True)
+
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "PyInstaller",
+            "--clean",
+            "--noconfirm",
+            "--onefile",
+            "--noupx",
+            "--name",
+            binary_name,
+            "--distpath",
+            str(binaries_directory),
+            "--workpath",
+            str(build_directory / "work"),
+            "--specpath",
+            str(build_directory / "spec"),
+            "--paths",
+            str(REPOSITORY_ROOT / "engine/src"),
+            str(REPOSITORY_ROOT / "engine/packaging/sidecar_entry.py"),
+        ],
+        check=True,
+        cwd=REPOSITORY_ROOT,
+    )
+    output = binaries_directory / f"{binary_name}{executable_suffix}"
+    if not output.is_file():
+        raise FileNotFoundError(f"PyInstaller did not create {output}")
+    return output
+
+
+def main() -> None:
+    output = build()
+    print(output)
+
+
+if __name__ == "__main__":
+    main()

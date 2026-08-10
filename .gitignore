@@ -15,5 +15,7 @@ __pycache__/
 
 target/
 src-tauri/target/
+build/
+apps/desktop/src-tauri/binaries/scope-engine-dev-*
 
 *.log
