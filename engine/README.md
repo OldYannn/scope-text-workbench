@@ -1,14 +1,14 @@
-# SCOPE research engine (development package)
+# SCOPE 研究分析引擎（开发包）
 
-This directory contains the local Python sidecar. The package and distribution names are development-only placeholders and must not be published before the technical identifiers and License are approved.
+本目录保存本地 Python sidecar。当前 Package Name 和 Distribution Name 都是开发阶段占位符；在技术标识和 License 获批前不得对外发布。
 
-Run the contract tests from the repository root:
+在仓库根目录运行协议契约测试：
 
 ```shell
 python3 -m unittest discover -s engine/tests -v
 ```
 
-Run the development engine with:
+运行开发版分析引擎：
 
 ```shell
 PYTHONPATH=engine/src python3 -m scope_engine

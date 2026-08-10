@@ -28,6 +28,18 @@
 
 ---
 
+## 项目语言规则
+
+- 源代码、变量名、函数名、类名、API / Protocol 字段、JSON Schema、Package Name、配置字段、目录技术名称和 Git Commit 使用规范英文；
+- 面向项目负责人和研究者的人类文档以中文为主，关键英文技术术语可保留，并应在首次出现时用中文解释；
+- 文件名不要求中文化，`development.md`、`sidecar-protocol.md` 等英文文件名可以保留；
+- `PROJECT_BRIEF.md`、`AGENTS.md`、`ROADMAP.md`、`docs/` 下的设计与方法文档，以及用户文档，必须让非计算机专业的项目负责人能够直接理解；
+- 每项重要架构决策都应包含简短的“项目负责人说明”，用非专业中文解释设计原因、解决的问题、主要风险和需要项目负责人决策的事项；
+- Private / Pre-alpha 阶段的 `README.md` 以中文为主；进入 Public Alpha 前，再规划英文主版 `README.md` 和中文版 `README.zh-CN.md`；
+- 不得为了表面统一而翻译协议字段、命令、路径、包名或其他需要保持技术一致性的标识。
+
+---
+
 ## 开发优先级
 
 优先级从高到低：
@@ -140,6 +152,8 @@ MVP 范围严格按照 `PROJECT_BRIEF.md` 中的 Milestone 推进。
 `README.md` 主要面向 GitHub 用户。
 
 `PROJECT_BRIEF.md` 保存长期产品、技术和研究战略。
+
+人类文档的语言和架构说明要求遵循“项目语言规则”。
 
 ---
 

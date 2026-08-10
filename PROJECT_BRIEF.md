@@ -874,6 +874,18 @@ License 建议后续比较：
 
 在上述标识确认前，可以使用明确标注为开发用途、可替换且不进入公开 Release 的内部占位符。不要注册正式域名、发布正式 Package，或创建难以迁移的公开标识。
 
+### 17.1 项目语言规范
+
+项目采用“技术标识保持英文、人类文档中文优先”的长期语言规范：
+
+- 源代码、变量和函数、API / Protocol 字段、JSON Schema、Package Name、配置字段、目录技术名称与 Git Commit 保持规范英文；
+- 面向项目负责人、研究者和中文用户的人类文档以中文为主，首次出现的关键英文技术术语应提供简短中文解释；
+- 文档文件名无需强行中文化，但正文必须让非计算机专业的项目负责人能够直接理解；
+- 每项重要架构决策应提供“项目负责人说明”，解释设计原因、解决的问题、主要风险和待决策事项；
+- Private / Pre-alpha 阶段的 `README.md` 以中文为主，进入 Public Alpha 前再规划英文主版 `README.md` 与中文版 `README.zh-CN.md`。
+
+语言规范用于降低项目维护和研究沟通门槛，不要求对源代码和技术标识进行无意义翻译。
+
 ---
 
 ## 18. 当前阶段与下一步
@@ -883,8 +895,8 @@ License 建议后续比较：
 下一步依次为：
 
 1. GitHub Repository Name 已确认；继续由项目负责人确认第 17 节中的 Bundle ID、Python / JavaScript Package Name 等发布标识；
-2. 建立 Architecture Decision Record，记录主架构、模块职责、Python sidecar 协议和 Electron 回退条件；
-3. 建立最小仓库骨架、测试框架和 CI；
+2. Architecture Decision Record、模块职责、Python sidecar 初始协议和 Electron 回退条件已经建立；
+3. 最小仓库骨架、测试框架和 CI 已经建立；
 4. 完成非科研性质的 diagnostic tracer bullet，验证进度、取消、异常中断和可复现清单；
 5. 在 Windows x64、macOS arm64、macOS x64 上验证无系统 Python 的最终安装产物；
 6. 完成 Milestone 0 所需的开源项目基础文档和质量检查。

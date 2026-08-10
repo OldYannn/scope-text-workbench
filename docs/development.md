@@ -1,19 +1,19 @@
-# Development setup
+# 开发环境说明
 
-SCOPE is a Pre-alpha project. The current scaffold validates the desktop boundary only and must not be used to produce research conclusions.
+SCOPE 当前处于 Pre-alpha。本页说明如何验证技术脚手架，当前版本不能用于产生正式研究结论。
 
-## Prerequisites
+## 环境要求
 
-- Node.js 24;
-- Python 3.11 or newer (CI currently uses Python 3.12);
-- the stable Rust toolchain with `rustfmt` and `clippy`;
-- Tauri 2 platform prerequisites for macOS or Windows.
+- Node.js 24；
+- Python 3.11 或更高版本，CI 当前使用 Python 3.12；
+- 稳定版 Rust 工具链，以及 `rustfmt` 和 `clippy`；
+- macOS 或 Windows 对应的 Tauri 2 系统依赖。
 
-End users will not need these tools. Release installers must eventually include the compiled frontend, Rust host, and frozen Python sidecar.
+这些工具只供开发者使用。最终用户不应自行安装这些开发环境；正式安装包需要包含已编译前端、Rust 桌面壳和冻结后的 Python sidecar。
 
-## Install dependencies
+## 安装依赖
 
-From the repository root:
+在仓库根目录执行：
 
 ```shell
 npm ci
@@ -21,9 +21,9 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -e "engine[dev]"
 ```
 
-On Windows, activate the virtual environment and use its `python` executable instead of `.venv/bin/python`.
+Windows 用户需要先激活虚拟环境，再使用其中的 `python`，而不是 `.venv/bin/python`。
 
-## Quality checks
+## 质量检查
 
 ```shell
 npm run check
@@ -40,28 +40,30 @@ cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
 cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-## Run the development shell
+这些命令分别检查 TypeScript 类型、代码规范、格式、前端构建、Python 类型与测试，以及 Rust 代码质量。
+
+## 启动开发版桌面壳
 
 ```shell
 npm run tauri -- dev
 ```
 
-The browser-only frontend can be inspected with:
+只检查浏览器前端时，可以执行：
 
 ```shell
 npm run dev --workspace @scope-workbench/desktop-dev
 ```
 
-## Build the native shell without an installer
+## 构建不含安装程序的桌面壳
 
 ```shell
 npm run tauri -- build --no-bundle
 ```
 
-This command validates the current native shell but does not yet satisfy Milestone 0 packaging requirements. The frozen Python sidecar, signing, installers, and required architecture matrix remain outstanding.
+该命令可以验证当前原生桌面壳，但还不满足 Milestone 0 的最终打包要求。冻结 Python sidecar、代码签名、安装程序和指定架构矩阵仍待完成。
 
-## Development-only identifiers
+## 开发阶段临时标识
 
-The npm workspace package, Python distribution, Rust crate, and Tauri Bundle ID currently contain `dev` or are otherwise documented as development placeholders. Do not publish them to a package registry or use them for a public release.
+npm workspace、Python distribution、Rust crate 和 Tauri Bundle ID 当前包含 `dev`，或已明确标记为开发占位符。在技术标识和 License 获批前，不得发布到 Package Registry，也不得用于公开 Release。
 
-The generated Tauri application icons are also temporary development assets. They must be replaced with approved SCOPE brand assets before any public build.
+Tauri 自动生成的应用图标同样只是临时开发资产。公开构建前必须替换为获批的 SCOPE 品牌资产。

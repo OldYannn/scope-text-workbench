@@ -1,88 +1,88 @@
-# SCOPE sidecar protocol
+# SCOPE sidecar 通信协议
 
-## Status and scope
+## 状态与范围
 
-This document defines the version `0.1` development contract between the desktop host and the Python engine. It covers diagnostic communication only. It does not define corpus, coding, or research-analysis behavior.
+本文定义桌面壳与 Python 分析引擎之间的 `0.1` 开发协议。目前只覆盖 diagnostic（技术诊断）通信，不定义语料、编码或研究分析行为。
 
-Transport is UTF-8 newline-delimited JSON (NDJSON): one complete JSON object per line. The host writes requests to the engine's standard input. The engine writes protocol messages to standard output and human-readable diagnostics to standard error.
+传输格式为 UTF-8 NDJSON（Newline-Delimited JSON，每行一个完整 JSON 对象）。桌面壳把请求写入分析引擎的标准输入；分析引擎把协议消息写入标准输出，把供开发者阅读的诊断信息写入标准错误。
 
-## Compatibility
+## 兼容规则
 
-- Every request and response carries `protocol_version`.
-- Version `0.1` requires an exact version match.
-- Adding optional object fields is backward-compatible within `0.1`.
-- Removing or changing field meanings requires a protocol version change.
-- Unknown fields must be ignored unless accepting them would change research behavior.
-- Unknown methods return a structured error.
+- 每个请求和响应都必须包含 `protocol_version`；
+- `0.1` 阶段要求双方版本完全一致；
+- 在 `0.1` 内新增可选字段属于向后兼容；
+- 删除字段或改变字段含义必须升级协议版本；
+- 未知字段原则上应忽略，但如果接受它会改变研究行为，则必须拒绝；
+- 未知方法返回结构化错误。
 
-## Request envelope
+## 请求 envelope（消息外壳）
 
 ```json
 {"protocol_version":"0.1","request_id":"req-1","method":"system.describe","params":{}}
 ```
 
-Required fields:
+必填字段：
 
-| Field | Type | Meaning |
+| 字段 | 类型 | 含义 |
 |---|---|---|
-| `protocol_version` | string | Protocol contract used by the caller |
-| `request_id` | non-empty string | Correlates all output for one request |
-| `method` | non-empty string | Names the requested operation |
-| `params` | object | Method-specific input |
+| `protocol_version` | string | 调用方使用的协议版本 |
+| `request_id` | non-empty string | 把同一次请求的所有输出关联起来 |
+| `method` | non-empty string | 请求执行的方法名称 |
+| `params` | object | 方法所需参数 |
 
-## Output envelopes
+## 输出 envelope
 
-Successful terminal response:
+成功结束：
 
 ```json
 {"protocol_version":"0.1","request_id":"req-1","type":"result","result":{"engine_version":"0.0.0","protocol_version":"0.1","capabilities":["system.describe"]}}
 ```
 
-Failed terminal response:
+失败结束：
 
 ```json
 {"protocol_version":"0.1","request_id":"req-1","type":"error","error":{"code":"method_not_found","message":"Unknown method: example","details":{}}}
 ```
 
-Progress event reserved for the diagnostic tracer bullet:
+为 diagnostic tracer bullet（诊断性贯穿切片）预留的进度消息：
 
 ```json
 {"protocol_version":"0.1","request_id":"req-2","type":"progress","progress":{"current":1,"total":10,"message":"Diagnostic step 1 of 10"}}
 ```
 
-Each accepted request produces exactly one terminal `result` or `error`. It may produce zero or more `progress` messages first.
+每个被接受的请求必须且只能产生一个最终 `result` 或 `error`，在此之前可以产生零个或多个 `progress`。
 
-## Initial method
+## 初始方法
 
 ### `system.describe`
 
-`params` must be an object and currently has no defined members. The result contains:
+`params` 必须是 object，目前没有定义内部字段。返回内容包括：
 
-- `engine_version`: installed engine version;
-- `protocol_version`: protocol implemented by the engine;
-- `capabilities`: sorted method names supported by this engine build.
+- `engine_version`：分析引擎版本；
+- `protocol_version`：分析引擎实现的协议版本；
+- `capabilities`：当前引擎支持的方法名称，按字母排序。
 
-This method performs no project mutation and requires no network access.
+该方法不会修改项目，也不需要网络。
 
-## Error codes
+## 错误代码
 
-| Code | Meaning |
+| 代码 | 含义 |
 |---|---|
-| `invalid_json` | Input line is not valid JSON |
-| `invalid_request` | Envelope shape or required fields are invalid |
-| `incompatible_protocol` | Caller and engine protocol versions differ |
-| `method_not_found` | Method is not supported |
-| `internal_error` | Unexpected engine failure; details must not expose secrets |
+| `invalid_json` | 输入行不是合法 JSON |
+| `invalid_request` | 消息外壳或必填字段不合法 |
+| `incompatible_protocol` | 调用方与分析引擎的协议版本不一致 |
+| `method_not_found` | 分析引擎不支持该方法 |
+| `internal_error` | 分析引擎出现意外错误；详细信息不得暴露 Secret |
 
-When no valid `request_id` can be recovered, the engine uses `null`. Malformed input must not crash the long-running engine process.
+如果无法恢复有效 `request_id`，分析引擎使用 `null`。损坏输入不能导致长期运行的分析引擎崩溃。
 
-## Lifecycle and cancellation
+## 生命周期与取消
 
-Milestone 0 will extend this contract with a non-research diagnostic operation and cancellation request. Cancellation is cooperative first; the Rust host may terminate and restart an unresponsive process after a documented timeout. A terminated request must never be represented as a successful research result.
+Milestone 0 将加入一个不涉及科研计算的 diagnostic 操作和取消请求。优先采用 cooperative cancellation（协作式取消）：任务定期检查取消信号并安全结束。若进程长时间无响应，Rust 桌面壳可以在记录原因后终止并重启进程。被终止的任务不得记录为成功的研究结果。
 
-## Security and reproducibility rules
+## 安全与可复现规则
 
-- Protocol output must never contain API keys or tokens.
-- Standard output is reserved for protocol messages.
-- File access will use host-approved paths or project-relative references.
-- Any future operation that can affect research results must record method version, parameters, input hashes, software versions, and random seed where applicable.
+- 协议输出不得包含 API Key 或 Token；
+- 标准输出只用于协议消息；
+- 文件访问使用桌面壳批准的路径或项目相对引用；
+- 未来任何可能影响研究结果的操作，都必须记录方法版本、参数、输入哈希、软件版本和适用的随机种子。

@@ -98,6 +98,8 @@ Milestone 0 当前已经建立 React / Tauri 桌面壳、Python sidecar 的初�
 
 项目进入公开协作阶段前将补充 `CONTRIBUTING.md`。
 
+当前 Private / Pre-alpha 阶段的 README 以中文为主。进入 Public Alpha 前，将规划英文主版 `README.md` 与中文版 `README.zh-CN.md`。
+
 ---
 
 ## 学术引用
