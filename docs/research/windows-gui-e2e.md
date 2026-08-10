@@ -163,6 +163,7 @@ Milestone 0 暂不为了统一平台测试而引入该插件。macOS 继续采�
 ### 8.1 稳定性
 
 - `windows-latest`、Edge 和 WebView2 会更新，可能产生偶发的 driver mismatch；由 service 自动匹配，失败保留日志，必要时再评估把 CI 标签固定到具体 Windows 镜像。
+- 2026-08-10 实际 CI 使用 WebView2 150.0.4078.105 时，两次稳定复现 `DevToolsActivePort file doesn't exist`。根因不是版本不匹配，而是 Runtime 150 对 elevated（管理员权限）宿主的安全强化会忽略 EdgeDriver 依赖的调试端口注入；GitHub-hosted Windows Runner 正好以管理员身份运行。[wry #1782](https://github.com/tauri-apps/wry/issues/1782)、[WebdriverIO desktop-mobile #542](https://github.com/webdriverio/desktop-mobile/issues/542)
 - WebDriver 启动与 sidecar 首次启动存在时序波动；使用条件等待和有限超时，不用无限重试掩盖真实故障。
 - 当前只维护一条 smoke spec。只有当真实产品流程增加后，才按用户路径增加用例。
 
@@ -183,7 +184,7 @@ Milestone 0 暂不为了统一平台测试而引入该插件。macOS 继续采�
 - Windows x64 CI Job 中少量步骤；
 - 必要的稳定 `data-testid`。
 
-首轮 CI 成功前应把该能力标为“试运行”，确认 Runner、Edge Driver、Release sidecar 路径和取消流程均稳定后，再将它设为必需检查。它不改变 Tauri + React + Python sidecar 架构，也不替代真实 Windows UAT。
+实现已加入 Milestone 0，但首轮完整通过证据受 WebView2 150 上游回归阻塞。CI 仅对“Runtime 150 + `DevToolsActivePort` 会话创建失败”这一组合记录临时警告；任何其他 E2E 失败继续阻塞。上游修复进入稳定依赖后必须删除例外并取得完整通过证据。它不改变 Tauri + React + Python sidecar 架构，也不替代真实 Windows UAT。
 
 ## 项目负责人说明
 
@@ -191,4 +192,4 @@ Milestone 0 暂不为了统一平台测试而引入该插件。macOS 继续采�
 
 它仍看不到 SmartScreen 是否吓到用户、字体是否舒服、窗口在高分屏上是否合适，也不能真的评价安装体验。这些问题必须以后在一台真实 Windows 电脑上由项目负责人或测试者验收。
 
-当前不需要项目负责人决定新的架构或购买服务。需要注意的唯一边界是：首轮 GUI E2E 先作为试运行检查；稳定后再把它变成每次合并都必须通过的门槛。
+当前不需要项目负责人决定新的架构或购买服务。首轮完整成功前 GUI E2E 的证据状态仍是“受上游阻塞”，不能写成通过；临时例外只覆盖已确认的 WebView2 150 会话签名，产品流程失败仍会让 CI 失败。

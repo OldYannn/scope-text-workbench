@@ -88,7 +88,7 @@ jobs:
 
       - name: Run Windows GUI E2E smoke test
         if: matrix.target == 'x86_64-pc-windows-msvc'
-        run: npm test --prefix tests/e2e
+        run: tests/e2e/run-windows-ci.ps1
 
       - name: Verify macOS application bundle
         if: runner.os == 'macOS'

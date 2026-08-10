@@ -1,6 +1,6 @@
 # ADR 0004：Windows-first 平台策略与分层验证
 
-- 状态：Milestone 0 已接受，Windows GUI E2E 待 CI 实证
+- 状态：Milestone 0 已接受并实现；Windows GUI E2E 受 WebView2 150 上游回归阻塞
 - 日期：2026-08-10
 
 ## 项目负责人说明
@@ -49,7 +49,11 @@ Milestone 0 采用 WebdriverIO、`@wdio/tauri-service` 和外部 `tauri-driver`�
 - 让 service 匹配 WebView2 的 Edge Driver，以降低 Runner 更新造成的版本不一致风险。
 - 每次测试使用独立、可写的临时 WebView2 user data folder，避免与普通用户数据混用，也减少 CI 临时目录布局造成的会话启动问题。
 
-首轮 Windows CI 通过前，该检查视为试运行；稳定后保留为 CI 的正常阻塞步骤。它只证明真实 Windows 应用的关键 WebView 流程，不证明安装器、操作系统安全提示、原生窗口或视觉质量。
+该测试通常是 CI 的阻塞步骤。2026-08-10 的实际 CI 发现一个范围明确的临时例外：GitHub-hosted Windows Runner 以管理员身份运行，WebView2 Runtime 150 会忽略 EdgeDriver 注入的远程调试端口，导致会话在进入 SCOPE 页面前以 `DevToolsActivePort file doesn't exist` 失败。这是 [wry #1782](https://github.com/tauri-apps/wry/issues/1782) 和 [WebdriverIO desktop-mobile #542](https://github.com/webdriverio/desktop-mobile/issues/542) 正在跟踪的上游回归。
+
+CI 只在日志同时匹配 WebView2 150 和这一会话创建签名时记录警告并临时放行。其他启动错误、页面错误或流程断言失败仍使 CI 失败。上游修复进入稳定依赖后必须移除这个精确例外，并取得首次完整通过证据。在此之前，ROADMAP 中的 Windows GUI E2E 保持未完成，不能把警告写成通过。
+
+GUI E2E 完整通过后也只证明真实 Windows 应用的关键 WebView 流程，不证明安装器、操作系统安全提示、原生窗口或视觉质量。
 
 ## macOS 验证
 
@@ -59,5 +63,6 @@ macOS 保留现有自动化测试、arm64 与 x64 原生构建。Milestone 0 不
 
 - Windows CI 时间会增加，且新增一组仅供测试使用的 Node 依赖；通过独立 lockfile、单用例和固定版本控制维护成本。
 - Windows GUI E2E 因 Runner 或 WebView2 更新出现偶发失败时，应先检查驱动匹配与日志，不用无限重试掩盖产品故障。
+- 精确的 WebView2 150 临时例外只用于上游已确认的 elevated Runner 会话创建回归；不得扩大为通用 `continue-on-error`。
 - 只有真实流程扩展且已有稳定公开界面边界时，才增加新 E2E；内部算法继续优先使用更快的单元、契约和集成测试。
 - 如果 GUI E2E 长期不稳定、维护成本明显超过发现问题的价值，或 Tauri 官方推荐路径改变，应复审本 ADR，但不因此自动更换桌面架构。

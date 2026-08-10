@@ -1,5 +1,6 @@
-import path from "node:path";
+import fs from "node:fs";
 import os from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const configurationDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -14,6 +15,22 @@ const webviewUserDataFolder = path.join(
   os.tmpdir(),
   `scope-wdio-webview2-${process.pid}`,
 );
+
+function cleanupWebviewUserDataFolder() {
+  try {
+    fs.rmSync(webviewUserDataFolder, {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
+  } catch (error) {
+    console.warn(
+      `Unable to remove temporary WebView2 data at ${webviewUserDataFolder}:`,
+      error,
+    );
+  }
+}
 
 export const config = {
   runner: "local",
@@ -47,4 +64,5 @@ export const config = {
   connectionRetryTimeout: 90_000,
   connectionRetryCount: 1,
   mochaOpts: { ui: "bdd", timeout: 30_000 },
+  onWorkerEnd: cleanupWebviewUserDataFolder,
 };

@@ -109,6 +109,8 @@ npm test --prefix tests/e2e
 
 默认测试路径是 `apps/desktop/src-tauri/target/release/scope-desktop-dev.exe`。如需验证其他开发产物，可以通过 `SCOPE_E2E_APP` 提供绝对路径。该测试使用真实 Release 应用和冻结 sidecar，但只控制 WebView2 页面，不验证 NSIS 安装、SmartScreen、Defender、原生窗口、DPI 或字体；这些项目必须留给真实 Windows UAT。
 
+当前 GitHub-hosted Windows Runner 的 WebView2 Runtime 150 存在已确认的上游自动化回归：管理员权限下 EdgeDriver 无法建立调试会话。CI 只在同时识别到 Runtime 150 和 `DevToolsActivePort file doesn't exist` 时记录临时警告；其他 E2E 失败仍会阻塞。该例外由 `tests/e2e/run-windows-ci.ps1` 精确判断，跟踪 [wry #1782](https://github.com/tauri-apps/wry/issues/1782)，上游稳定修复可用后必须删除。在此之前不能把 Windows GUI E2E 记录为通过。
+
 建议的最小 Windows UAT 环境是：Windows 11 x64 物理机或行为接近真实用户的虚拟机、普通非管理员账户、启用 Defender 与 SmartScreen、当前稳定版 WebView2 Runtime、至少 1920×1080 显示环境，并分别检查 100% 和 150% 缩放。测试机不应预装项目开发环境或 Python。验收时记录 Windows build、WebView2 版本、安装包 SHA、出现的安全提示和失败截图。
 
 ## 开发阶段临时标识
