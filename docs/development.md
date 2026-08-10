@@ -2,6 +2,8 @@
 
 SCOPE 当前处于 Pre-alpha。本页说明如何验证技术脚手架，当前版本不能用于产生正式研究结论。
 
+GUI 测试、Computer Use 和项目负责人人工验收的边界见 [`docs/testing/gui-testing.md`](testing/gui-testing.md)。默认先使用自动化测试，只有 GUI 特有行为才使用最小范围的 Computer Use。
+
 ## 环境要求
 
 - Node.js 24；
