@@ -1,6 +1,6 @@
 # ADR 0003：Python sidecar 冻结与原生平台打包
 
-- 状态：Milestone 0 实施中
+- 状态：Milestone 0 已接受并实现
 - 日期：2026-08-10
 - 决策者：SCOPE 项目维护者
 

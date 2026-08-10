@@ -12,7 +12,7 @@ SCOPE 当前处于 Pre-alpha 阶段。在关键技术风险得到验证前，路
 - [x] 建立 Python 分析引擎开发包和协议契约测试
 - [x] 建立首版 CI、Lint、Format 和构建检查
 - [x] 使用非科研 diagnostic 操作验证进度、取消、异常恢复和可复现元数据
-- [ ] 打包 Python sidecar，使用户无需安装系统 Python
+- [x] 打包 Python sidecar，使用户无需安装系统 Python
 - [ ] 在 Windows x64、macOS arm64 和 macOS x64 上验证安装包
 - [ ] 用获批的 SCOPE 品牌资产替换开发模板图标
 - [ ] 比较 License 方案并取得项目负责人确认

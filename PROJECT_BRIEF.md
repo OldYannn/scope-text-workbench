@@ -898,8 +898,8 @@ License 建议后续比较：
 2. Architecture Decision Record、模块职责、Python sidecar 初始协议和 Electron 回退条件已经建立；
 3. 最小仓库骨架、测试框架和 CI 已经建立；
 4. 非科研性质的 diagnostic tracer bullet 已完成，已验证进度、取消、异常中断和可复现清单；
-5. 下一步冻结并打包 Python sidecar，确保 Release 不依赖用户系统 Python；
-6. 在 Windows x64、macOS arm64、macOS x64 上验证最终安装产物；
+5. Python sidecar 已在 Windows x64、macOS arm64、macOS x64 上完成原生冻结和 CI 打包，Release 不依赖用户系统 Python；
+6. 下一步在三个目标平台验证安装、首次启动和最小 GUI smoke test，并单独进行项目负责人 UAT；
 7. 完成 Milestone 0 所需的开源项目基础文档和质量检查。
 
 以下事项最终决策权属于项目负责人：
