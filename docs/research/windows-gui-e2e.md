@@ -59,6 +59,7 @@ Microsoft 要求 Edge WebDriver 的版本与应用使用的 WebView2 Runtime 匹
 
 - CI 显式执行 `cargo install tauri-driver --locked`，让安装步骤和失败日志可审查；
 - `@wdio/tauri-service` 开启 `autoDownloadEdgeDriver: true`，处理 Runner 更新造成的版本变化；
+- 为每次测试显式分配独立、可写的临时 WebView2 user data folder（用户数据目录），避免 CI 临时目录布局导致 `DevToolsActivePort` 无法发现；
 - 测试指向本次 Job 刚构建的真实 Release `.exe`；
 - `maxInstances: 1`，只运行一条串行 smoke spec，避免多个应用和 sidecar 竞争端口或进程状态。
 

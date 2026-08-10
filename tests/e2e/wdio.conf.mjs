@@ -1,4 +1,5 @@
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 const configurationDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -9,6 +10,10 @@ const appBinaryPath =
     repositoryRoot,
     "apps/desktop/src-tauri/target/release/scope-desktop-dev.exe",
   );
+const webviewUserDataFolder = path.join(
+  os.tmpdir(),
+  `scope-wdio-webview2-${process.pid}`,
+);
 
 export const config = {
   runner: "local",
@@ -17,7 +22,10 @@ export const config = {
   capabilities: [
     {
       browserName: "tauri",
-      "tauri:options": { application: appBinaryPath },
+      "tauri:options": {
+        application: appBinaryPath,
+        webviewOptions: { userDataFolder: webviewUserDataFolder },
+      },
     },
   ],
   services: [

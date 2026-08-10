@@ -47,6 +47,7 @@ Milestone 0 采用 WebdriverIO、`@wdio/tauri-service` 和外部 `tauri-driver`�
 - 不加入 embedded WebDriver server、测试专用 Tauri plugin、额外 capability 或产品权限；
 - npm 测试依赖与版本锁定在 `tests/e2e`，`tauri-driver` 用精确版本和 Cargo lock 安装；
 - 让 service 匹配 WebView2 的 Edge Driver，以降低 Runner 更新造成的版本不一致风险。
+- 每次测试使用独立、可写的临时 WebView2 user data folder，避免与普通用户数据混用，也减少 CI 临时目录布局造成的会话启动问题。
 
 首轮 Windows CI 通过前，该检查视为试运行；稳定后保留为 CI 的正常阻塞步骤。它只证明真实 Windows 应用的关键 WebView 流程，不证明安装器、操作系统安全提示、原生窗口或视觉质量。
 
