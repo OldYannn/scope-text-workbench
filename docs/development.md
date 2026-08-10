@@ -38,15 +38,25 @@ npm run build
 
 cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
 cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
-这些命令分别检查 TypeScript 类型、代码规范、格式、前端构建、Python 类型与测试，以及 Rust 代码质量。
+这些命令分别检查 TypeScript 类型、代码规范、格式、前端构建、Python 类型与测试，以及 Rust 代码质量和分析引擎生命周期。
 
 ## 启动开发版桌面壳
 
 ```shell
 npm run tauri -- dev
 ```
+
+开发版会从仓库根目录的 `.venv` 启动 Python 分析引擎。桌面首页的“基础链路诊断”可以验证：
+
+- 逐步进度能否从 Python 到达 React；
+- 正在运行的任务能否安全取消；
+- Python 异常退出后，新请求能否启动新进程；
+- 成功结果能否显示最小可复现清单。
+
+该诊断不读取语料，也不产生研究结论。Release 构建在冻结 sidecar 完成前会明确报告“打包引擎尚未配置”，不会改用用户电脑上的系统 Python。
 
 只检查浏览器前端时，可以执行：
 

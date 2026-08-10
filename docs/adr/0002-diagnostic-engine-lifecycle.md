@@ -1,6 +1,6 @@
 # ADR 0002：Diagnostic tracer bullet 与分析引擎生命周期
 
-- 状态：Milestone 0 已接受
+- 状态：Milestone 0 已接受并实现
 - 日期：2026-08-10
 - 决策者：SCOPE 项目维护者
 
@@ -52,3 +52,5 @@ Python 进程退出时，Rust 将所有仍在等待的请求标记为 `engine_ex
 ## 影响与后续
 
 本切片验证的是进程基础设施，不是研究审计链的完整实现。后续研究方法加入前，需要把动态 JSON envelope 升级为明确 Schema，并将冻结 sidecar 接入相同生命周期 Module。
+
+实现后的自动化验证覆盖 Python 进程协议、Rust 消息路由、协作式取消、异常退出通知，以及新请求触发重启。桌面诊断面板会显示进度、状态和可复现清单。正式 Release 仍不会使用系统 Python；冻结 sidecar 是 Milestone 0 的下一项独立工作。
