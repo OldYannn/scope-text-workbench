@@ -83,18 +83,34 @@ UAT 未由项目负责人实际执行和反馈前，证据状态只能写为“�
 
 后续开发汇报必须标明证据类型，不使用没有来源的“审查通过”。
 
-| 证据类型 | 含义 |
-|---|---|
-| Automated Test | 本地单元、组件、契约或集成测试产生的可重复结果 |
-| CI Build | GitHub Actions 等持续集成环境中的构建和测试结果 |
+| 证据类型              | 含义                                                 |
+| --------------------- | ---------------------------------------------------- |
+| Automated Test        | 本地单元、组件、契约或集成测试产生的可重复结果       |
+| CI Build              | GitHub Actions 等持续集成环境中的构建和测试结果      |
 | Codex/Subagent Review | Codex 或子代理根据规格与项目规范进行的代码／文档审查 |
-| Computer Use GUI Test | Codex 按预先声明的 Test Flow 执行的 GUI 测试 |
-| Project Owner UAT | 项目负责人按照独立清单执行并反馈的人工验收 |
-| External Review | 外部测试者、研究者或独立审查者提供的验证结果 |
+| Computer Use GUI Test | Codex 按预先声明的 Test Flow 执行的 GUI 测试         |
+| Project Owner UAT     | 项目负责人按照独立清单执行并反馈的人工验收           |
+| External Review       | 外部测试者、研究者或独立审查者提供的验证结果         |
 
 汇报时应同时说明通过、失败、未执行或受阻，必要时附测试数量、平台、构建类型、提交 SHA 或 CI 链接。
 
-## 8. 默认协作原则
+## 8. Windows-first 的平台验证分层
+
+SCOPE 正式采用 Windows-first，cross-platform supported（Windows 优先、跨平台正式支持）策略。Windows 是最终用户体验的参考平台，macOS 是当前主要开发环境并保持正式支持。两个平台要求核心研究能力和结果一致，不要求操作系统原生界面像素级一致。
+
+Windows 验证必须区分以下三层：
+
+| 层级                      | 主要内容                                                  | 能够证明                             | 不能替代                             |
+| ------------------------- | --------------------------------------------------------- | ------------------------------------ | ------------------------------------ |
+| Windows Automated Test    | Rust、Python、React、NDJSON 协议、sidecar 和可复现清单    | 内部逻辑和跨进程契约可重复验证       | 真实 GUI 交互                        |
+| Windows GUI E2E           | CI 启动真实 Tauri Release 应用，运行一条最短 WebView 流程 | 应用可启动，关键页面和诊断交互可运行 | 安装器、安全提示、原生窗口和视觉体验 |
+| Windows Project Owner UAT | 真实 Windows 环境中的安装、首次启动和人工观察             | 用户实际安装与使用体验               | 每次提交的自动化回归检查             |
+
+Windows GUI E2E 只覆盖应用 WebView 内的关键流程。即使该检查通过，也不能写成“Windows 用户体验已经验证”。真实 Windows UAT 应至少检查 NSIS 安装、首次启动、SmartScreen / Defender、窗口、100% 与 150% DPI、中文字体和整体操作体验；它不是每次提交的阻塞条件，但应是重要 Milestone 和 Public Release 前的必要验收。
+
+macOS 继续进行自动化测试和原生构建，并可按本规范使用最小必要的本机 Computer Use smoke test。不得为了平台表面一致而重复验证已经由自动化测试覆盖的内部逻辑。
+
+## 9. 默认协作原则
 
 > 自动化验证优先，Computer Use 最小必要使用；Codex GUI QA 与项目负责人 UAT 分开执行。
 

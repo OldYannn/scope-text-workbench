@@ -165,7 +165,11 @@ function App() {
         </div>
       </header>
 
-      <section className="hero" aria-labelledby="hero-title">
+      <section
+        className="hero"
+        aria-labelledby="hero-title"
+        data-testid="scope-hero"
+      >
         <p className="eyebrow">
           Humanities &amp; Social Sciences Text Workbench
         </p>
@@ -189,26 +193,36 @@ function App() {
         </div>
 
         <div className="diagnostic-instrument">
-          <div className="meter" aria-label={`诊断进度 ${progressPercent}%`}>
+          <div
+            className="meter"
+            aria-label={`诊断进度 ${progressPercent}%`}
+            data-testid="diagnostic-progress"
+          >
             <span className="meter-value">{progressPercent}</span>
             <span className="meter-unit">%</span>
             <div className="meter-track" aria-hidden="true">
               <span style={{ width: `${progressPercent}%` }} />
             </div>
           </div>
-          <p className="diagnostic-status" aria-live="polite">
+          <p
+            className="diagnostic-status"
+            aria-live="polite"
+            data-testid="diagnostic-status"
+          >
             <span aria-hidden="true">STATUS</span>
             {status}
           </p>
           <div className="diagnostic-actions">
             <button
               className="primary-action"
+              data-testid="diagnostic-run"
               disabled={!desktopRuntime || operation !== "idle"}
               onClick={() => void runDiagnostic()}
             >
               运行诊断
             </button>
             <button
+              data-testid="diagnostic-cancel"
               disabled={operation !== "diagnostic"}
               onClick={() => void cancelDiagnostic()}
             >
@@ -223,7 +237,7 @@ function App() {
           </div>
           <div className="manifest-panel">
             <span>Reproducibility manifest / 可复现清单</span>
-            <pre>
+            <pre data-testid="diagnostic-manifest">
               {manifest
                 ? JSON.stringify(manifest, null, 2)
                 : "完成一次诊断后，固定参数、软件版本和网络使用状态将在这里显示。"}

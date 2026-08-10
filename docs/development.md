@@ -95,6 +95,22 @@ npm run tauri -- build
 
 CI 会分别在 macOS arm64、macOS x64 和 Windows x64 原生 Runner 上构建 sidecar 与安装包，并保存开发构建产物。当前 macOS 使用 ad-hoc 开发签名，Windows 构建未配置发布证书；这些产物只能用于技术验证，不能作为公开 Release。
 
+## Windows GUI E2E
+
+Windows x64 CI 在完成真实 Tauri Release 构建后，会运行一条 WebdriverIO GUI E2E（端到端界面测试）：启动应用，确认诊断页出现，依次验证开始、进度、取消、再次运行、完成和可复现清单。测试依赖隔离在 `tests/e2e`，不会进入最终用户安装包。
+
+Windows 开发者本地执行前需要完成 Release 构建，并安装锁定版本的外部驱动：
+
+```powershell
+cargo install tauri-driver --version 2.0.6 --locked
+npm ci --prefix tests/e2e
+npm test --prefix tests/e2e
+```
+
+默认测试路径是 `apps/desktop/src-tauri/target/release/scope-desktop-dev.exe`。如需验证其他开发产物，可以通过 `SCOPE_E2E_APP` 提供绝对路径。该测试使用真实 Release 应用和冻结 sidecar，但只控制 WebView2 页面，不验证 NSIS 安装、SmartScreen、Defender、原生窗口、DPI 或字体；这些项目必须留给真实 Windows UAT。
+
+建议的最小 Windows UAT 环境是：Windows 11 x64 物理机或行为接近真实用户的虚拟机、普通非管理员账户、启用 Defender 与 SmartScreen、当前稳定版 WebView2 Runtime、至少 1920×1080 显示环境，并分别检查 100% 和 150% 缩放。测试机不应预装项目开发环境或 Python。验收时记录 Windows build、WebView2 版本、安装包 SHA、出现的安全提示和失败截图。
+
 ## 开发阶段临时标识
 
 npm workspace、Python distribution、Rust crate 和 Tauri Bundle ID 当前包含 `dev`，或已明确标记为开发占位符。在技术标识和 License 获批前，不得发布到 Package Registry，也不得用于公开 Release。

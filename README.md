@@ -50,6 +50,8 @@ SCOPE（中文品牌名：文镜）是一个面向人文社会科学研究者的
 - 面向非编程研究者；
 - 不用“AI 魔法”隐藏关键研究参数。
 
+当前平台策略是 **Windows-first，cross-platform supported（Windows 优先、跨平台正式支持）**。Windows x64 是最终用户体验的参考平台；macOS arm64 与 macOS x64 保持正式支持。首个 Public Alpha 暂不扩展到 Windows ARM64 或 Linux。
+
 ---
 
 ## 第一阶段 Roadmap

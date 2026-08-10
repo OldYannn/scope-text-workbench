@@ -382,6 +382,14 @@ Electron + React / TypeScript + Python sidecar 作为跨平台打包验证失败
 
 ### 7.1 桌面 / 本地应用优先
 
+SCOPE 采用 **Windows-first，cross-platform supported（Windows 优先、跨平台正式支持）** 的产品策略：
+
+- Windows 是第一目标平台和最终用户体验的 Reference Platform（参考平台）；
+- macOS 是当前主要开发环境，并继续保持正式支持；
+- 两个平台必须保持核心功能、研究流程、项目文件和数据格式、分析结果、参数与可复现记录一致；
+- 主要视觉语言应一致，但窗口、文件选择器、快捷键、系统字体、安装流程和安全提示可以遵循各自操作系统惯例；
+- 如果出现无法同时优化的低风险体验冲突，在不破坏 macOS 正常使用的前提下优先保证 Windows 体验。
+
 - React / TypeScript 负责用户界面；
 - Rust 保持为薄桌面协调层，负责窗口、权限、获批路径、应用更新和 sidecar 生命周期；
 - Python 分析引擎负责项目存储、SQLite、研究算法、参数默认值、结果持久化和研究审计链；
@@ -400,12 +408,15 @@ Milestone 0 必须通过真实安装产物持续验证：
 - Vibe Coding 友好程度；
 - 安全性。
 
-目标平台：
+当前正式目标平台：
 
-- Windows；
-- macOS。
+- Windows x64；
+- macOS arm64；
+- macOS x64。
 
-Linux 支持是加分项，但不要求第一版完成。
+Milestone 0 和首个 Public Alpha 暂不增加 Windows ARM64 或 Linux，避免平台范围膨胀。新增平台必须另行评估构建、测试、发布和维护成本。
+
+平台验证分层进行。Windows 需要分别保留自动化测试、真实 Tauri GUI E2E 和项目负责人人工验收三类证据；macOS 保留自动化测试、本机构建与最小必要的 Computer Use GUI smoke test。构建成功不能写成用户体验已经验证，具体边界见 `docs/testing/gui-testing.md`。
 
 ---
 
@@ -664,6 +675,8 @@ License 建议后续比较：
 - CI；
 - 测试框架；
 - 最小可运行应用壳。
+- Windows x64 真实 Tauri 应用的最小 GUI E2E；
+- 三个正式目标平台的原生构建，以及分层记录的 GUI／人工验收状态。
 
 ---
 
@@ -860,17 +873,17 @@ License 建议后续比较：
 
 品牌名称已经确定，GitHub 仓库名称也已确认为 `OldYannn/scope-text-workbench`。其余技术标识尚未锁定；候选名称均未完成商标或生态冲突核验，必须由项目负责人确认后实施：
 
-| 技术标识 | 候选方向（未锁定） | 主要风险 |
-|---|---|---|
-| GitHub Repository Name | 已确认：`OldYannn/scope-text-workbench` | 仓库链接已经形成，不再作为普通实现细节变更 |
-| 应用显示名 | 国际场景 `SCOPE`；中文场景 `SCOPE 文镜` | 显示名可含空格和中文，但不能直接当作全部技术标识 |
-| 应用内部标识 | `scope-desktop`、`scope-workbench` | 需要与 Bundle ID、更新通道和可执行文件名保持可追踪关系 |
-| Tauri / Bundle ID | `org.<maintainer>.scope`、`io.github.<owner>.scope` | 必须先确定权威域名或 GitHub Owner；发布后不宜更改 |
-| JavaScript Package Name | `@<owner>/scope-desktop`、`@scope-wenjing/desktop` | npm scope 和包名可用性尚未核验 |
-| Python Distribution Name | `scope-research-engine`、`scope-text-engine` | PyPI 名称可能冲突；distribution name 与 import name 可以不同 |
-| Python Import Package | `scope_engine`、`scope_research_engine` | 应避免使用过于通用的 `scope`，降低与其他库冲突的风险 |
-| Sidecar / CLI 名称 | `scope-engine`、`scope-cli` | 可能与系统命令或其他工具冲突；MVP 不应无必要暴露全局 CLI |
-| 项目格式或扩展名 | 项目目录、`.scope-project` 等候选 | 一旦公开使用会形成兼容性承诺，必须先设计迁移和冲突处理 |
+| 技术标识                 | 候选方向（未锁定）                                  | 主要风险                                                     |
+| ------------------------ | --------------------------------------------------- | ------------------------------------------------------------ |
+| GitHub Repository Name   | 已确认：`OldYannn/scope-text-workbench`             | 仓库链接已经形成，不再作为普通实现细节变更                   |
+| 应用显示名               | 国际场景 `SCOPE`；中文场景 `SCOPE 文镜`             | 显示名可含空格和中文，但不能直接当作全部技术标识             |
+| 应用内部标识             | `scope-desktop`、`scope-workbench`                  | 需要与 Bundle ID、更新通道和可执行文件名保持可追踪关系       |
+| Tauri / Bundle ID        | `org.<maintainer>.scope`、`io.github.<owner>.scope` | 必须先确定权威域名或 GitHub Owner；发布后不宜更改            |
+| JavaScript Package Name  | `@<owner>/scope-desktop`、`@scope-wenjing/desktop`  | npm scope 和包名可用性尚未核验                               |
+| Python Distribution Name | `scope-research-engine`、`scope-text-engine`        | PyPI 名称可能冲突；distribution name 与 import name 可以不同 |
+| Python Import Package    | `scope_engine`、`scope_research_engine`             | 应避免使用过于通用的 `scope`，降低与其他库冲突的风险         |
+| Sidecar / CLI 名称       | `scope-engine`、`scope-cli`                         | 可能与系统命令或其他工具冲突；MVP 不应无必要暴露全局 CLI     |
+| 项目格式或扩展名         | 项目目录、`.scope-project` 等候选                   | 一旦公开使用会形成兼容性承诺，必须先设计迁移和冲突处理       |
 
 在上述标识确认前，可以使用明确标注为开发用途、可替换且不进入公开 Release 的内部占位符。不要注册正式域名、发布正式 Package，或创建难以迁移的公开标识。
 
@@ -899,8 +912,9 @@ License 建议后续比较：
 3. 最小仓库骨架、测试框架和 CI 已经建立；
 4. 非科研性质的 diagnostic tracer bullet 已完成，已验证进度、取消、异常中断和可复现清单；
 5. Python sidecar 已在 Windows x64、macOS arm64、macOS x64 上完成原生冻结和 CI 打包，Release 不依赖用户系统 Python；
-6. 下一步在三个目标平台验证安装、首次启动和最小 GUI smoke test，并单独进行项目负责人 UAT；
-7. 完成 Milestone 0 所需的开源项目基础文档和质量检查。
+6. Windows x64 在既有自动化测试与原生构建之上增加真实 Tauri GUI E2E；安装、SmartScreen / Defender、DPI、字体和总体体验仍待独立的真实 Windows UAT；
+7. macOS arm64 保留安装与首次启动的最小 Computer Use smoke test，macOS x64 继续通过原生 CI 构建验证；
+8. 完成 Milestone 0 所需的开源项目基础文档和质量检查。
 
 以下事项最终决策权属于项目负责人：
 
