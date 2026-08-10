@@ -858,11 +858,11 @@ License 建议后续比较：
 - 代码中的变量名、类名、函数名、接口和数据库字段继续采用规范英文命名；
 - “SCOPE Framework”是长期方法学框架工作名，不代表该方法已经建立或验证完成。
 
-品牌名称已经确定，但以下技术标识尚未锁定。候选名称均未检查实时可用性、商标或生态冲突，必须由项目负责人确认后实施：
+品牌名称已经确定，GitHub 仓库名称也已确认为 `OldYannn/scope-text-workbench`。其余技术标识尚未锁定；候选名称均未完成商标或生态冲突核验，必须由项目负责人确认后实施：
 
 | 技术标识 | 候选方向（未锁定） | 主要风险 |
 |---|---|---|
-| GitHub Repository Name | `scope-text-workbench`、`scope-wenjing`、`scope-hss` | `scope` 语义通用，可能重名；仓库名会影响链接和社区识别 |
+| GitHub Repository Name | 已确认：`OldYannn/scope-text-workbench` | 仓库链接已经形成，不再作为普通实现细节变更 |
 | 应用显示名 | 国际场景 `SCOPE`；中文场景 `SCOPE 文镜` | 显示名可含空格和中文，但不能直接当作全部技术标识 |
 | 应用内部标识 | `scope-desktop`、`scope-workbench` | 需要与 Bundle ID、更新通道和可执行文件名保持可追踪关系 |
 | Tauri / Bundle ID | `org.<maintainer>.scope`、`io.github.<owner>.scope` | 必须先确定权威域名或 GitHub Owner；发布后不宜更改 |
@@ -882,7 +882,7 @@ License 建议后续比较：
 
 下一步依次为：
 
-1. 由项目负责人确认第 17 节中的 GitHub Repository Name、Bundle ID、Python / JavaScript Package Name 等技术标识；
+1. GitHub Repository Name 已确认；继续由项目负责人确认第 17 节中的 Bundle ID、Python / JavaScript Package Name 等发布标识；
 2. 建立 Architecture Decision Record，记录主架构、模块职责、Python sidecar 协议和 Electron 回退条件；
 3. 建立最小仓库骨架、测试框架和 CI；
 4. 完成非科研性质的 diagnostic tracer bullet，验证进度、取消、异常中断和可复现清单；

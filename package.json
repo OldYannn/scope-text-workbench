@@ -1,0 +1,16 @@
+{
+  "name": "scope-text-workbench-dev",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @scope-workbench/desktop-dev",
+    "check": "npm run check --workspace @scope-workbench/desktop-dev",
+    "format": "npm run format --workspace @scope-workbench/desktop-dev",
+    "format:check": "npm run format:check --workspace @scope-workbench/desktop-dev",
+    "lint": "npm run lint --workspace @scope-workbench/desktop-dev",
+    "tauri": "npm run tauri --workspace @scope-workbench/desktop-dev --"
+  }
+}

@@ -67,7 +67,10 @@ SCOPE（中文品牌名：文镜）是一个面向人文社会科学研究者的
 
 完整项目规划请参阅：
 
-`PROJECT_BRIEF.md`
+- [PROJECT_BRIEF.md](PROJECT_BRIEF.md)
+- [ROADMAP.md](ROADMAP.md)
+- [架构决策](docs/adr/0001-desktop-python-sidecar-architecture.md)
+- [开发环境说明](docs/development.md)
 
 ---
 
@@ -76,6 +79,8 @@ SCOPE（中文品牌名：文镜）是一个面向人文社会科学研究者的
 项目处于 Pre-alpha 阶段。
 
 在 v1.0 之前可能发生较大规模的功能、UI 和数据格式调整。
+
+Milestone 0 当前已经建立 React / Tauri 桌面壳、Python sidecar 的初始 NDJSON 协议契约与自动化质量检查。冻结 Python sidecar、完整安装包和跨架构验证仍在进行中。
 
 ---
 
