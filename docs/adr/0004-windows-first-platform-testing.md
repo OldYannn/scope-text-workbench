@@ -51,7 +51,7 @@ Milestone 0 采用 WebdriverIO、`@wdio/tauri-service` 和外部 `tauri-driver`�
 
 该测试通常是 CI 的阻塞步骤。2026-08-10 的实际 CI 发现一个范围明确的临时例外：GitHub-hosted Windows Runner 以管理员身份运行，WebView2 Runtime 150 会忽略 EdgeDriver 注入的远程调试端口，导致会话在进入 SCOPE 页面前以 `DevToolsActivePort file doesn't exist` 失败。这是 [wry #1782](https://github.com/tauri-apps/wry/issues/1782) 和 [WebdriverIO desktop-mobile #542](https://github.com/webdriverio/desktop-mobile/issues/542) 正在跟踪的上游回归。
 
-CI 只在日志同时匹配 WebView2 150 和这一会话创建签名时记录警告并临时放行。其他启动错误、页面错误或流程断言失败仍使 CI 失败。上游修复进入稳定依赖后必须移除这个精确例外，并取得首次完整通过证据。在此之前，ROADMAP 中的 Windows GUI E2E 保持未完成，不能把警告写成通过。
+CI 只在日志同时匹配 WebView2 150、这一已知签名、最终失败类别为 session creation（会话创建），并且测试 spec 尚未开始执行时记录警告并临时放行。只要测试已经进入诊断用例，或出现其他启动、页面与流程错误，CI 都保持失败。上游修复进入稳定依赖后必须移除这个精确例外，并取得首次完整通过证据。在此之前，ROADMAP 中的 Windows GUI E2E 保持未完成，不能把警告写成通过。
 
 GUI E2E 完整通过后也只证明真实 Windows 应用的关键 WebView 流程，不证明安装器、操作系统安全提示、原生窗口或视觉质量。
 

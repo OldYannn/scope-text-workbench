@@ -64,5 +64,6 @@ export const config = {
   connectionRetryTimeout: 90_000,
   connectionRetryCount: 1,
   mochaOpts: { ui: "bdd", timeout: 30_000 },
+  beforeTest: () => console.info("SCOPE_E2E_SPEC_STARTED"),
   onWorkerEnd: cleanupWebviewUserDataFolder,
 };
