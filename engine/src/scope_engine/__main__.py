@@ -16,8 +16,42 @@ CAPABILITIES = [
     "system.describe",
 ]
 OUTPUT_LOCK = threading.Lock()
-ACTIVE_TASKS_LOCK = threading.Lock()
-ACTIVE_TASKS: dict[str, threading.Event] = {}
+
+
+class TaskRegistry:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._tasks: dict[str, threading.Event] = {}
+
+    def start(self, request_id: str) -> threading.Event | None:
+        with self._lock:
+            if request_id in self._tasks:
+                return None
+            cancel_event = threading.Event()
+            self._tasks[request_id] = cancel_event
+            return cancel_event
+
+    def cancel(self, request_id: str) -> bool:
+        with self._lock:
+            cancel_event = self._tasks.get(request_id)
+            if cancel_event is None:
+                return False
+            cancel_event.set()
+            return True
+
+    def finish(self, request_id: str, cancel_event: threading.Event) -> bool:
+        with self._lock:
+            if self._tasks.get(request_id) is cancel_event:
+                self._tasks.pop(request_id)
+            return cancel_event.is_set()
+
+    def discard(self, request_id: str, cancel_event: threading.Event) -> None:
+        with self._lock:
+            if self._tasks.get(request_id) is cancel_event:
+                self._tasks.pop(request_id)
+
+
+ACTIVE_TASKS = TaskRegistry()
 
 
 def error_response(
@@ -102,14 +136,7 @@ def run_diagnostic(
     try:
         for current in range(1, steps + 1):
             if cancel_event.wait(delay_ms / 1000):
-                emit(
-                    error_response(
-                        "cancelled",
-                        "Request was cancelled",
-                        request_id=request_id,
-                    )
-                )
-                return
+                break
             emit(
                 {
                     "protocol_version": PROTOCOL_VERSION,
@@ -122,29 +149,48 @@ def run_diagnostic(
                     },
                 }
             )
-        emit(
-            result_response(
-                request_id,
-                {
-                    "completed_steps": steps,
-                    "reproducibility_manifest": {
-                        "operation": "diagnostic.run",
-                        "operation_version": "1",
-                        "parameters": {"steps": steps, "delay_ms": delay_ms},
-                        "software": {
-                            "engine_version": __version__,
-                            "protocol_version": PROTOCOL_VERSION,
-                        },
-                        "random_seed": None,
-                        "input_hashes": [],
-                        "network_used": False,
-                    },
-                },
+        cancelled = ACTIVE_TASKS.finish(request_id, cancel_event)
+        if cancelled:
+            emit(
+                error_response(
+                    "cancelled",
+                    "Request was cancelled",
+                    request_id=request_id,
+                )
             )
-        )
-    finally:
-        with ACTIVE_TASKS_LOCK:
-            ACTIVE_TASKS.pop(request_id, None)
+        else:
+            emit(
+                result_response(
+                    request_id,
+                    {
+                        "completed_steps": steps,
+                        "reproducibility_manifest": {
+                            "operation": "diagnostic.run",
+                            "operation_version": "1",
+                            "parameters": {"steps": steps, "delay_ms": delay_ms},
+                            "software": {
+                                "engine_version": __version__,
+                                "protocol_version": PROTOCOL_VERSION,
+                            },
+                            "random_seed": None,
+                            "input_hashes": [],
+                            "network_used": False,
+                        },
+                    },
+                )
+            )
+    except Exception:
+        ACTIVE_TASKS.discard(request_id, cancel_event)
+        try:
+            emit(
+                error_response(
+                    "internal_error",
+                    "Diagnostic worker failed unexpectedly",
+                    request_id=request_id,
+                )
+            )
+        except Exception:
+            os._exit(71)
 
 
 def handle_request(request: Any) -> dict[str, Any] | None:
@@ -173,15 +219,13 @@ def handle_request(request: Any) -> dict[str, Any] | None:
         params_error = validate_diagnostic_params(request_id, request["params"])
         if params_error is not None:
             return params_error
-        cancel_event = threading.Event()
-        with ACTIVE_TASKS_LOCK:
-            if request_id in ACTIVE_TASKS:
-                return error_response(
-                    "request_id_in_use",
-                    "request_id is already running",
-                    request_id=request_id,
-                )
-            ACTIVE_TASKS[request_id] = cancel_event
+        cancel_event = ACTIVE_TASKS.start(request_id)
+        if cancel_event is None:
+            return error_response(
+                "request_id_in_use",
+                "request_id is already running",
+                request_id=request_id,
+            )
         threading.Thread(
             target=run_diagnostic,
             args=(
@@ -205,15 +249,12 @@ def handle_request(request: Any) -> dict[str, Any] | None:
                 "request.cancel requires a non-empty target_request_id",
                 request_id=request_id,
             )
-        with ACTIVE_TASKS_LOCK:
-            target_cancel_event = ACTIVE_TASKS.get(target_request_id)
-            if target_cancel_event is not None:
-                target_cancel_event.set()
+        accepted = ACTIVE_TASKS.cancel(target_request_id)
         return result_response(
             request_id,
             {
                 "target_request_id": target_request_id,
-                "accepted": target_cancel_event is not None,
+                "accepted": accepted,
             },
         )
     if request["method"] == "diagnostic.crash":

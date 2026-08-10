@@ -126,6 +126,11 @@ impl EngineSupervisor {
         if let Err(error) = write_result {
             state.pending.remove(&request_id);
             stop_process(state.process.take());
+            fail_pending(
+                &mut state,
+                "engine_exited",
+                "Python engine connection failed while writing a request",
+            );
             return Err(SupervisorError(format!(
                 "cannot write request to engine: {error}"
             )));
@@ -349,6 +354,46 @@ mod tests {
         let cancelled = receive(&running);
         assert_eq!(cancelled["type"], "error");
         assert_eq!(cancelled["error"]["code"], "cancelled");
+    }
+
+    #[test]
+    fn write_failure_terminates_requests_already_waiting_on_the_process() {
+        let executable = if cfg!(windows) { "python" } else { "python3" };
+        let script = concat!(
+            "import json,os,sys,time; ",
+            "request=json.loads(sys.stdin.readline()); ",
+            "os.close(0); ",
+            "print(json.dumps({'protocol_version':'0.1','request_id':request['request_id'],",
+            "'type':'progress','progress':{'current':1,'total':2,'message':'ready'}}),flush=True); ",
+            "time.sleep(3)"
+        );
+        let supervisor = EngineSupervisor::new(CommandSpec {
+            executable: executable.into(),
+            arguments: vec!["-u".into(), "-c".into(), script.into()],
+            environment: Vec::new(),
+            unavailable_reason: None,
+        });
+        let waiting = supervisor
+            .request(json!({
+                "protocol_version": "0.1",
+                "request_id": "waiting-before-broken-pipe",
+                "method": "diagnostic.run",
+                "params": {"steps": 2, "delay_ms": 0}
+            }))
+            .expect("first request accepted");
+        assert_eq!(receive(&waiting)["type"], "progress");
+        std::thread::sleep(Duration::from_millis(50));
+
+        let write_error = supervisor.request(json!({
+            "protocol_version": "0.1",
+            "request_id": "broken-pipe-trigger",
+            "method": "system.describe",
+            "params": {}
+        }));
+        assert!(write_error.is_err());
+        let terminal = receive(&waiting);
+        assert_eq!(terminal["type"], "error");
+        assert_eq!(terminal["error"]["code"], "engine_exited");
     }
 
     #[test]

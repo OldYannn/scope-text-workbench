@@ -1,6 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
 type EngineMessage = {
@@ -14,6 +14,8 @@ type EngineMessage = {
   };
   error?: { code: string; message: string };
 };
+
+type Operation = "idle" | "diagnostic" | "recovery";
 
 const foundations = [
   {
@@ -39,7 +41,9 @@ function requestId(prefix: string) {
 
 function App() {
   const desktopRuntime = isTauri();
-  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
+  const activeRequestId = useRef<string | null>(null);
+  const operationRef = useRef<Operation>("idle");
+  const [operation, setOperation] = useState<Operation>("idle");
   const [progress, setProgress] = useState({ current: 0, total: 5 });
   const [status, setStatus] = useState(
     desktopRuntime ? "等待诊断" : "请在 Tauri 桌面窗口中运行",
@@ -52,6 +56,7 @@ function App() {
   useEffect(() => {
     if (!desktopRuntime) return;
     const unlisten = listen<EngineMessage>("engine-progress", ({ payload }) => {
+      if (payload.request_id !== activeRequestId.current) return;
       setProgress({
         current: payload.progress?.current ?? 0,
         total: payload.progress?.total ?? 1,
@@ -63,9 +68,22 @@ function App() {
     };
   }, [desktopRuntime]);
 
+  function beginOperation(nextOperation: Exclude<Operation, "idle">) {
+    if (operationRef.current !== "idle") return false;
+    operationRef.current = nextOperation;
+    setOperation(nextOperation);
+    return true;
+  }
+
+  function endOperation() {
+    operationRef.current = "idle";
+    setOperation("idle");
+  }
+
   async function runDiagnostic() {
+    if (!beginOperation("diagnostic")) return;
     const id = requestId("diagnostic");
-    setActiveRequestId(id);
+    activeRequestId.current = id;
     setManifest(null);
     setProgress({ current: 0, total: 5 });
     setStatus("正在启动 Python 分析引擎…");
@@ -88,17 +106,19 @@ function App() {
     } catch (error) {
       setStatus(`无法运行诊断：${String(error)}`);
     } finally {
-      setActiveRequestId(null);
+      activeRequestId.current = null;
+      endOperation();
     }
   }
 
   async function cancelDiagnostic() {
-    if (!activeRequestId) return;
+    const targetRequestId = activeRequestId.current;
+    if (operationRef.current !== "diagnostic" || !targetRequestId) return;
     setStatus("正在请求安全取消…");
     try {
       await invoke<EngineMessage>("diagnostic_cancel", {
         requestId: requestId("cancel"),
-        targetRequestId: activeRequestId,
+        targetRequestId,
       });
     } catch (error) {
       setStatus(`取消失败：${String(error)}`);
@@ -106,6 +126,7 @@ function App() {
   }
 
   async function verifyRecovery() {
+    if (!beginOperation("recovery")) return;
     setStatus("正在模拟分析引擎异常退出…");
     setManifest(null);
     try {
@@ -124,6 +145,8 @@ function App() {
       setStatus("恢复验证通过：旧请求未重放，新请求已由新进程响应");
     } catch (error) {
       setStatus(`恢复验证失败：${String(error)}`);
+    } finally {
+      endOperation();
     }
   }
 
@@ -180,19 +203,19 @@ function App() {
           <div className="diagnostic-actions">
             <button
               className="primary-action"
-              disabled={!desktopRuntime || activeRequestId !== null}
+              disabled={!desktopRuntime || operation !== "idle"}
               onClick={() => void runDiagnostic()}
             >
               运行诊断
             </button>
             <button
-              disabled={!activeRequestId}
+              disabled={operation !== "diagnostic"}
               onClick={() => void cancelDiagnostic()}
             >
               安全取消
             </button>
             <button
-              disabled={!desktopRuntime || activeRequestId !== null}
+              disabled={!desktopRuntime || operation !== "idle"}
               onClick={() => void verifyRecovery()}
             >
               验证异常恢复
