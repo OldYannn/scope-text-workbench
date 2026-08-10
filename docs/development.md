@@ -28,6 +28,7 @@ Windows 用户需要先激活虚拟环境，再使用其中的 `python`，而不
 ```shell
 npm run check
 npm run lint
+npm test
 npm run format:check
 npm run build
 
