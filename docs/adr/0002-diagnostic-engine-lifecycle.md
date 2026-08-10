@@ -35,7 +35,7 @@ Python 引擎新增三个仅供 Milestone 0 使用的方法：
 
 Rust 新增一个进程监督 Module（模块）。它的 Interface（调用方需要了解的全部接口）只负责：发送请求、接收与该请求关联的消息、取消请求，以及在进程不可用时自动重启。子进程标准输入输出、reader thread（读取线程）、消息路由和待处理请求表都属于内部 Implementation（实现），不暴露给 React。
 
-开发模式使用仓库 `.venv` 中的 Python 启动 `scope_engine`。Release 模式在冻结 sidecar 完成前明确返回“未配置打包引擎”，不能静默退回用户系统 Python。
+开发模式使用仓库 `.venv` 中的 Python 启动 `scope_engine`。Release 模式从桌面应用的可执行文件目录启动随包分发的 `scope-engine-dev`；文件缺失或启动失败时返回明确错误，不能静默退回用户系统 Python。
 
 ## 取消语义
 
@@ -53,4 +53,4 @@ Python 进程退出时，Rust 将所有仍在等待的请求标记为 `engine_ex
 
 本切片验证的是进程基础设施，不是研究审计链的完整实现。后续研究方法加入前，需要把动态 JSON envelope 升级为明确 Schema，并将冻结 sidecar 接入相同生命周期 Module。
 
-实现后的自动化验证覆盖 Python 进程协议、Rust 消息路由、协作式取消、异常退出通知，以及新请求触发重启。桌面诊断面板会显示进度、状态和可复现清单。正式 Release 仍不会使用系统 Python；冻结 sidecar 是 Milestone 0 的下一项独立工作。
+实现后的自动化验证覆盖 Python 进程协议、Rust 消息路由、协作式取消、异常退出通知，以及新请求触发重启。桌面诊断面板会显示进度、状态和可复现清单。冻结 sidecar 的具体选择与发布风险记录在 ADR 0003。

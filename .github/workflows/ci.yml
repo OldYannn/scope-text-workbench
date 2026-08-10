@@ -34,17 +34,26 @@ jobs:
           cache-dependency-path: engine/pyproject.toml
 
       - run: python -m pip install -e "engine[dev]"
-      - run: ruff check engine
-      - run: ruff format --check engine
-      - run: mypy engine/src engine/tests
+      - run: ruff check engine scripts
+      - run: ruff format --check engine scripts
+      - run: mypy engine/src engine/tests engine/packaging scripts
       - run: python -m unittest discover -s engine/tests -v
 
   desktop-host:
-    name: Desktop host (${{ matrix.os }})
+    name: Desktop package (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -63,7 +72,20 @@ jobs:
           python-version: "3.12"
 
       - run: npm ci
+      - run: python -m pip install -e "engine[packaging]"
       - run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
-      - run: npm run tauri -- build --no-bundle
+      - run: python scripts/build_sidecar.py
+      - run: python scripts/verify_sidecar.py
+      - run: npm run tauri -- build --bundles ${{ matrix.bundles }}
+
+      - name: Verify macOS application bundle
+        if: runner.os == 'macOS'
+        run: python scripts/verify_macos_bundle.py "apps/desktop/src-tauri/target/release/bundle/macos/SCOPE 文镜 (Development).app"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scope-development-${{ matrix.target }}
+          path: apps/desktop/src-tauri/target/release/bundle/**
+          if-no-files-found: error

@@ -20,7 +20,7 @@ GUI 测试、Computer Use 和项目负责人人工验收的边界见 [`docs/test
 ```shell
 npm ci
 python3 -m venv .venv
-.venv/bin/python -m pip install -e "engine[dev]"
+.venv/bin/python -m pip install -e "engine[dev,packaging]"
 ```
 
 Windows 用户需要先激活虚拟环境，再使用其中的 `python`，而不是 `.venv/bin/python`。
@@ -34,9 +34,9 @@ npm test
 npm run format:check
 npm run build
 
-.venv/bin/ruff check engine
-.venv/bin/ruff format --check engine
-.venv/bin/mypy engine/src engine/tests
+.venv/bin/ruff check engine scripts
+.venv/bin/ruff format --check engine scripts
+.venv/bin/mypy engine/src engine/tests engine/packaging scripts
 .venv/bin/python -m unittest discover -s engine/tests -v
 
 cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
@@ -59,7 +59,7 @@ npm run tauri -- dev
 - Python 异常退出后，新请求能否启动新进程；
 - 成功结果能否显示最小可复现清单。
 
-该诊断不读取语料，也不产生研究结论。Release 构建在冻结 sidecar 完成前会明确报告“打包引擎尚未配置”，不会改用用户电脑上的系统 Python。
+该诊断不读取语料，也不产生研究结论。Release 构建从应用包内启动冻结后的 sidecar，不会改用用户电脑上的系统 Python。如果打包文件缺失或无法启动，会返回明确错误。
 
 只检查浏览器前端时，可以执行：
 
@@ -67,13 +67,33 @@ npm run tauri -- dev
 npm run dev --workspace @scope-workbench/desktop-dev
 ```
 
-## 构建不含安装程序的桌面壳
+## 冻结并验证 Python sidecar
+
+PyInstaller 必须在目标操作系统和 CPU 架构上原生运行，不能用一个平台交叉生成其他平台的可执行文件。在仓库根目录执行：
 
 ```shell
-npm run tauri -- build --no-bundle
+.venv/bin/python scripts/build_sidecar.py
+.venv/bin/python scripts/verify_sidecar.py
 ```
 
-该命令可以验证当前原生桌面壳，但还不满足 Milestone 0 的最终打包要求。冻结 Python sidecar、代码签名、安装程序和指定架构矩阵仍待完成。
+构建脚本会读取 Rust host target triple（宿主目标三元组），生成 Tauri 要求的 `scope-engine-dev-<target-triple>` 文件。验证脚本会移除 `PYTHONHOME` 和 `PYTHONPATH`，再检查协议描述、进度、可复现清单及异常退出，证明产物不依赖系统 Python。
+
+`scope-engine-dev` 仍是开发阶段内部标识，不代表正式 Package Name 已获批。
+
+## 构建桌面安装包
+
+```shell
+npm run tauri -- build
+```
+
+运行前必须先为当前平台构建冻结 sidecar。macOS 还可以用以下命令自动验证应用包结构、包内 sidecar 和开发签名：
+
+```shell
+.venv/bin/python scripts/verify_macos_bundle.py \
+  "apps/desktop/src-tauri/target/release/bundle/macos/SCOPE 文镜 (Development).app"
+```
+
+CI 会分别在 macOS arm64、macOS x64 和 Windows x64 原生 Runner 上构建 sidecar 与安装包，并保存开发构建产物。当前 macOS 使用 ad-hoc 开发签名，Windows 构建未配置发布证书；这些产物只能用于技术验证，不能作为公开 Release。
 
 ## 开发阶段临时标识
 
