@@ -182,6 +182,8 @@ impl EngineSupervisor {
         let mut command = Command::new(&self.command.executable);
         command
             .args(&self.command.arguments)
+            .env_remove("PYTHONHOME")
+            .env_remove("PYTHONPATH")
             .envs(self.command.environment.iter().cloned())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

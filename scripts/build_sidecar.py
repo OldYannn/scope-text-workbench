@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import os
 import subprocess
 import sys
@@ -30,8 +31,12 @@ def rust_target_triple() -> str:
     raise RuntimeError("rustc did not report a host target triple")
 
 
-def build() -> Path:
+def build(expected_target: str | None = None) -> Path:
     target_triple = rust_target_triple()
+    if expected_target is not None and target_triple != expected_target:
+        raise RuntimeError(
+            f"Runner target mismatch: expected {expected_target}, rustc reported {target_triple}"
+        )
     executable_suffix = ".exe" if os.name == "nt" else ""
     binary_name = f"scope-engine-dev-{target_triple}"
     binaries_directory = REPOSITORY_ROOT / "apps/desktop/src-tauri/binaries"
@@ -70,7 +75,10 @@ def build() -> Path:
 
 
 def main() -> None:
-    output = build()
+    parser = argparse.ArgumentParser(description="Freeze the SCOPE Python sidecar")
+    parser.add_argument("--expected-target")
+    arguments = parser.parse_args()
+    output = build(arguments.expected_target)
     print(output)
 
 

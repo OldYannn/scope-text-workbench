@@ -29,6 +29,7 @@ def verify(sidecar_path: Path) -> None:
     environment = os.environ.copy()
     environment.pop("PYTHONHOME", None)
     environment.pop("PYTHONPATH", None)
+    environment["PATH"] = ""
     input_lines = [
         request("frozen-describe", "system.describe", {}),
         request("frozen-diagnostic", "diagnostic.run", {"steps": 2, "delay_ms": 0}),

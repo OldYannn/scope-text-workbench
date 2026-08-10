@@ -76,7 +76,7 @@ PyInstaller 必须在目标操作系统和 CPU 架构上原生运行，不能用
 .venv/bin/python scripts/verify_sidecar.py
 ```
 
-构建脚本会读取 Rust host target triple（宿主目标三元组），生成 Tauri 要求的 `scope-engine-dev-<target-triple>` 文件。验证脚本会移除 `PYTHONHOME` 和 `PYTHONPATH`，再检查协议描述、进度、可复现清单及异常退出，证明产物不依赖系统 Python。
+构建脚本会读取 Rust host target triple（宿主目标三元组），生成 Tauri 要求的 `scope-engine-dev-<target-triple>` 文件。验证脚本会移除 `PYTHONHOME`、`PYTHONPATH` 和可搜索外部程序的 `PATH`，再检查协议描述、进度、可复现清单及异常退出，证明产物不依赖系统 Python。CI 还会要求 Rust 报告的实际 host target 与矩阵声明一致，避免给错误架构的产物贴上误导标签。
 
 `scope-engine-dev` 仍是开发阶段内部标识，不代表正式 Package Name 已获批。
 
