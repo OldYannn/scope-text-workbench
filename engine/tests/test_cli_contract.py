@@ -8,7 +8,7 @@ import sys
 import threading
 import unittest
 from pathlib import Path
-from typing import TextIO
+from typing import Any, TextIO
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 
@@ -78,12 +78,12 @@ class EngineProcess:
         if self.process.stderr:
             self.process.stderr.close()
 
-    def send(self, request: dict[str, object]) -> None:
+    def send(self, request: dict[str, Any]) -> None:
         assert self.process.stdin is not None
         self.process.stdin.write(json.dumps(request) + "\n")
         self.process.stdin.flush()
 
-    def read(self) -> dict[str, object]:
+    def read(self) -> dict[str, Any]:
         try:
             line = self.output.get(timeout=2)
         except queue.Empty:

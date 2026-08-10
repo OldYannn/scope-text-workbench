@@ -57,7 +57,12 @@ jobs:
         with:
           components: clippy, rustfmt
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
       - run: npm ci
       - run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
       - run: npm run tauri -- build --no-bundle

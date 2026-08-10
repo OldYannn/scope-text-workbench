@@ -1,4 +1,19 @@
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { useEffect, useState } from "react";
 import "./App.css";
+
+type EngineMessage = {
+  request_id: string;
+  type: "progress" | "result" | "error";
+  progress?: { current: number; total: number; message: string };
+  result?: {
+    completed_steps?: number;
+    engine_version?: string;
+    reproducibility_manifest?: Record<string, unknown>;
+  };
+  error?: { code: string; message: string };
+};
 
 const foundations = [
   {
@@ -18,7 +33,102 @@ const foundations = [
   },
 ];
 
+function requestId(prefix: string) {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
 function App() {
+  const desktopRuntime = isTauri();
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
+  const [progress, setProgress] = useState({ current: 0, total: 5 });
+  const [status, setStatus] = useState(
+    desktopRuntime ? "等待诊断" : "请在 Tauri 桌面窗口中运行",
+  );
+  const [manifest, setManifest] = useState<Record<string, unknown> | null>(
+    null,
+  );
+  const [engineVersion, setEngineVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!desktopRuntime) return;
+    const unlisten = listen<EngineMessage>("engine-progress", ({ payload }) => {
+      setProgress({
+        current: payload.progress?.current ?? 0,
+        total: payload.progress?.total ?? 1,
+      });
+      setStatus(payload.progress?.message ?? "诊断进行中");
+    });
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
+  }, [desktopRuntime]);
+
+  async function runDiagnostic() {
+    const id = requestId("diagnostic");
+    setActiveRequestId(id);
+    setManifest(null);
+    setProgress({ current: 0, total: 5 });
+    setStatus("正在启动 Python 分析引擎…");
+    try {
+      const message = await invoke<EngineMessage>("diagnostic_run", {
+        requestId: id,
+        steps: 5,
+        delayMs: 1000,
+      });
+      if (message.type === "result") {
+        setManifest(message.result?.reproducibility_manifest ?? null);
+        setStatus("诊断完成，已生成可复现清单");
+      } else {
+        setStatus(
+          message.error?.code === "cancelled"
+            ? "诊断已安全取消"
+            : `诊断失败：${message.error?.message ?? "未知错误"}`,
+        );
+      }
+    } catch (error) {
+      setStatus(`无法运行诊断：${String(error)}`);
+    } finally {
+      setActiveRequestId(null);
+    }
+  }
+
+  async function cancelDiagnostic() {
+    if (!activeRequestId) return;
+    setStatus("正在请求安全取消…");
+    try {
+      await invoke<EngineMessage>("diagnostic_cancel", {
+        requestId: requestId("cancel"),
+        targetRequestId: activeRequestId,
+      });
+    } catch (error) {
+      setStatus(`取消失败：${String(error)}`);
+    }
+  }
+
+  async function verifyRecovery() {
+    setStatus("正在模拟分析引擎异常退出…");
+    setManifest(null);
+    try {
+      const crash = await invoke<EngineMessage>("diagnostic_crash", {
+        requestId: requestId("crash"),
+      });
+      if (crash.error?.code !== "engine_exited") {
+        setStatus("异常退出未按预期报告");
+        return;
+      }
+      setStatus("已发现异常，正在用新请求重启引擎…");
+      const restarted = await invoke<EngineMessage>("engine_describe", {
+        requestId: requestId("recovery"),
+      });
+      setEngineVersion(restarted.result?.engine_version ?? null);
+      setStatus("恢复验证通过：旧请求未重放，新请求已由新进程响应");
+    } catch (error) {
+      setStatus(`恢复验证失败：${String(error)}`);
+    }
+  }
+
+  const progressPercent = Math.round((progress.current / progress.total) * 100);
+
   return (
     <main className="shell">
       <header className="masthead">
@@ -44,6 +154,62 @@ function App() {
           SCOPE 文镜正在建立最小可信技术底座。本阶段只验证桌面壳、Python
           分析引擎边界与跨平台交付，不产生科研分析结论。
         </p>
+      </section>
+
+      <section className="diagnostic" aria-labelledby="diagnostic-title">
+        <div className="diagnostic-heading">
+          <p className="eyebrow">Diagnostic tracer bullet / 基础链路诊断</p>
+          <h2 id="diagnostic-title">桌面与分析引擎之间，是否真的可靠？</h2>
+          <p>
+            这不是研究功能。它只验证进度、取消、异常恢复，以及一次运行所需的可复现记录。
+          </p>
+        </div>
+
+        <div className="diagnostic-instrument">
+          <div className="meter" aria-label={`诊断进度 ${progressPercent}%`}>
+            <span className="meter-value">{progressPercent}</span>
+            <span className="meter-unit">%</span>
+            <div className="meter-track" aria-hidden="true">
+              <span style={{ width: `${progressPercent}%` }} />
+            </div>
+          </div>
+          <p className="diagnostic-status" aria-live="polite">
+            <span aria-hidden="true">STATUS</span>
+            {status}
+          </p>
+          <div className="diagnostic-actions">
+            <button
+              className="primary-action"
+              disabled={!desktopRuntime || activeRequestId !== null}
+              onClick={() => void runDiagnostic()}
+            >
+              运行诊断
+            </button>
+            <button
+              disabled={!activeRequestId}
+              onClick={() => void cancelDiagnostic()}
+            >
+              安全取消
+            </button>
+            <button
+              disabled={!desktopRuntime || activeRequestId !== null}
+              onClick={() => void verifyRecovery()}
+            >
+              验证异常恢复
+            </button>
+          </div>
+          <div className="manifest-panel">
+            <span>Reproducibility manifest / 可复现清单</span>
+            <pre>
+              {manifest
+                ? JSON.stringify(manifest, null, 2)
+                : "完成一次诊断后，固定参数、软件版本和网络使用状态将在这里显示。"}
+            </pre>
+          </div>
+          {engineVersion && (
+            <p className="engine-version">恢复后的引擎版本 {engineVersion}</p>
+          )}
+        </div>
       </section>
 
       <section className="foundation-grid" aria-label="Project foundations">
