@@ -913,7 +913,7 @@ License 建议后续比较：
 4. 非科研性质的 diagnostic tracer bullet 已完成，已验证进度、取消、异常中断和可复现清单；
 5. Python sidecar 已在 Windows x64、macOS arm64、macOS x64 上完成原生冻结和 CI 打包，Release 不依赖用户系统 Python；
 6. Windows x64 在既有自动化测试与原生构建之上增加真实 Tauri GUI E2E；安装、SmartScreen / Defender、DPI、字体和总体体验仍待独立的真实 Windows UAT；
-7. macOS arm64 保留安装与首次启动的最小 Computer Use smoke test，macOS x64 继续通过原生 CI 构建验证；
+7. macOS arm64 已完成安装与首次启动的最小 Computer Use smoke test，macOS x64 继续通过原生 CI 构建验证；
 8. 完成 Milestone 0 所需的开源项目基础文档和质量检查。
 
 以下事项最终决策权属于项目负责人：

@@ -1,13 +1,13 @@
 # ADR 0004：Windows-first 平台策略与分层验证
 
-- 状态：Milestone 0 已接受并实现；Windows GUI E2E 受 WebView2 150 上游回归阻塞
-- 日期：2026-08-10
+- 状态：Milestone 0 已接受并实现；Windows GUI E2E 已切换为 blocking embedded provider
+- 日期：2026-08-11
 
 ## 项目负责人说明
 
 - 为什么需要：Windows 预计是主要用户平台，但“Windows 安装包编译成功”只能证明文件生成了，不能证明真实应用可以交互，更不能代表普通用户的安装体验已经合格。
 - 解决的问题：明确 Windows 与 macOS 的产品优先级，并把自动化逻辑、真实应用界面流程和人工用户体验拆成三种独立证据，避免以后笼统地写“Windows 已验证”。
-- 主要风险：GitHub 的 Windows、Edge 和 WebView2 会更新，GUI E2E 可能出现环境波动；CI 仍无法看到 SmartScreen、字体、DPI 和整体使用感受。
+- 主要风险：embedded WebDriver 具有强自动化能力，必须严格留在 Test Build；CI 仍无法看到 SmartScreen、字体、DPI 和整体使用感受。
 - 需要项目负责人决策：当前不需要更换架构或购买服务。重要 Milestone 和 Public Release 前，需要项目负责人安排一次真实 Windows UAT，并决定正式代码签名方案。
 
 ## 背景
@@ -32,37 +32,39 @@ Tauri 官方支持在 Windows CI 中通过 WebDriver 驱动 WebView2。SCOPE 的
 ### Windows 验证层级
 
 1. **Windows Automated Test**：覆盖 Rust、Python、React、NDJSON 协议、sidecar 和可复现清单。
-2. **Windows GUI E2E**：在 Windows CI 中启动本次 Job 构建的真实 Tauri Release `.exe`，执行一条开始、进度、取消、再次运行、完成和显示清单的 smoke test。
+2. **Windows GUI E2E**：在 Windows CI 中启动本次 Job 构建的真实 Tauri E2E Test Build，建立 WebDriver 会话并确认关键页面元素可见。
 3. **Windows Project Owner UAT**：在真实 Windows 环境独立检查 NSIS 安装、首次启动、SmartScreen / Defender、窗口、DPI、字体和总体体验。
 
 三层证据不得相互替代。真实 Windows UAT 暂不作为每次提交的阻塞条件，但属于重要 Milestone 和 Public Release 前的必要验收。
 
 ### GUI E2E 技术方案
 
-Milestone 0 采用 WebdriverIO、`@wdio/tauri-service` 和外部 `tauri-driver`：
+Milestone 0 采用 WebdriverIO、`@wdio/tauri-service` 和 `tauri-plugin-wdio-webdriver` 的 embedded provider：
 
 - 只在 Windows x64 CI Job 中运行一条串行 smoke spec；
-- 测试本次 Job 刚生成的普通 Release 应用，不创建特殊产品构建；
+- 先生成普通 Production bundle，再用显式 `e2e` Cargo feature 构建 Release 优化的 Test Build；
+- Test Build 使用独立 `CARGO_TARGET_DIR`、`--no-bundle` 且不上传，不会覆盖或混入正式安装包；
+- `tauri-plugin-wdio-webdriver` 是 optional dependency，只在 `#[cfg(feature = "e2e")]` 中注册；CI 会验证普通 feature graph 不含该插件；
 - 通过稳定的 `data-testid` 观察公开界面，不读取 React 内部状态；
-- 不加入 embedded WebDriver server、测试专用 Tauri plugin、额外 capability 或产品权限；
-- npm 测试依赖与版本锁定在 `tests/e2e`，`tauri-driver` 用精确版本和 Cargo lock 安装；
-- 让 service 匹配 WebView2 的 Edge Driver，以降低 Runner 更新造成的版本不一致风险。
-- 每次测试使用独立、可写的临时 WebView2 user data folder，避免与普通用户数据混用，也减少 CI 临时目录布局造成的会话启动问题。
+- npm 测试依赖与插件版本均锁定为 `1.3.0`；embedded 路径不启动外部 `tauri-driver` / MSEdgeDriver；
+- 任何 Test Build、会话或元素断言失败都直接阻塞 Windows Job，不设 warning 放行。
 
-该测试通常是 CI 的阻塞步骤。2026-08-10 的实际 CI 发现一个范围明确的临时例外：GitHub-hosted Windows Runner 以管理员身份运行，WebView2 Runtime 150 会忽略 EdgeDriver 注入的远程调试端口，导致会话在进入 SCOPE 页面前以 `DevToolsActivePort file doesn't exist` 失败。这是 [wry #1782](https://github.com/tauri-apps/wry/issues/1782) 和 [WebdriverIO desktop-mobile #542](https://github.com/webdriverio/desktop-mobile/issues/542) 正在跟踪的上游回归。
+原 external provider 依赖 EdgeDriver 注入调试端口，与 WebView2 Runtime 150 在 elevated host 中的有意安全强化冲突。这不再被定义为“等待 WebView2 上游修复”；embedded server 通过 Test Build 内部的 WebView 原生 API 工作，避开该外部调试端口。
 
-CI 只在日志同时匹配 WebView2 150、这一已知签名、最终失败类别为 session creation（会话创建），并且测试 spec 尚未开始执行时记录警告并临时放行。只要测试已经进入诊断用例，或出现其他启动、页面与流程错误，CI 都保持失败。上游修复进入稳定依赖后必须移除这个精确例外，并取得首次完整通过证据。在此之前，ROADMAP 中的 Windows GUI E2E 保持未完成，不能把警告写成通过。
+2026-08-11 的 [GitHub Actions run 31454320984](https://github.com/OldYannn/scope-text-workbench/actions/runs/31454320984) 在 Windows x64 上完成了 Production 隔离检查、启动 Test Build、建立 embedded WebDriver 会话和关键元素断言。旧的 WebView2 150 日志匹配 wrapper 已删除，Windows GUI E2E 恢复为真正的 blocking test。
 
 GUI E2E 完整通过后也只证明真实 Windows 应用的关键 WebView 流程，不证明安装器、操作系统安全提示、原生窗口或视觉质量。
 
 ## macOS 验证
 
-macOS 保留现有自动化测试、arm64 与 x64 原生构建。Milestone 0 不为追求表面一致而嵌入测试 WebDriver server；macOS arm64 安装与首次启动继续按照 `docs/testing/gui-testing.md` 定义短 Test Flow，再进行最小必要的本机 Computer Use smoke test。
+macOS 保留现有自动化测试、arm64 与 x64 原生构建。embedded provider 未因此扩展到 macOS CI；macOS arm64 安装与首次启动继续按照 `docs/testing/gui-testing.md` 定义短 Test Flow，再进行最小必要的本机 Computer Use smoke test。
+
+2026-08-11 已对提交 `871e73c` 的 macOS arm64 Production DMG 完成该 smoke：DMG 挂载、复制到 `/Applications`、首次启动和首页渲染均通过；未重复执行已由自动测试覆盖的诊断内部流程。
 
 ## 后果与复审条件
 
-- Windows CI 时间会增加，且新增一组仅供测试使用的 Node 依赖；通过独立 lockfile、单用例和固定版本控制维护成本。
-- Windows GUI E2E 因 Runner 或 WebView2 更新出现偶发失败时，应先检查驱动匹配与日志，不用无限重试掩盖产品故障。
-- 精确的 WebView2 150 临时例外只用于上游已确认的 elevated Runner 会话创建回归；不得扩大为通用 `continue-on-error`。
+- Windows CI 时间会增加，且新增仅供测试使用的 Rust / Node 依赖；通过独立 lockfile、单用例和固定版本控制维护成本。
+- Windows GUI E2E 因 Runner 或 WebView2 更新出现失败时，应保留日志并定位具体原因，不用 warning 放行或无限重试掩盖产品故障。
+- 任何把 `e2e` feature 加入默认或正式发布构建的改动都是安全回归，必须阻塞。
 - 只有真实流程扩展且已有稳定公开界面边界时，才增加新 E2E；内部算法继续优先使用更快的单元、契约和集成测试。
 - 如果 GUI E2E 长期不稳定、维护成本明显超过发现问题的价值，或 Tauri 官方推荐路径改变，应复审本 ADR，但不因此自动更换桌面架构。

@@ -1,5 +1,7 @@
 # Windows GUI E2E 最小可行性评估
 
+> 历史记录：本文保留 2026-08-10 对 external provider 的原始评估。该路线已被 2026-08-11 的 embedded provider Spike 取代，当前实现与结论见 `docs/research/embedded-windows-gui-e2e.md` 和 ADR 0004。
+
 > 调研日期：2026-08-10  
 > 适用阶段：Milestone 0  
 > 结论：可在现有 Windows x64 GitHub Actions Job 中加入一条真实 Tauri 应用的短 GUI smoke test（冒烟测试）。建议采用 WebdriverIO、`@wdio/tauri-service` 和外部 `tauri-driver`，暂不把测试插件嵌入 SCOPE。

@@ -97,19 +97,21 @@ CI 会分别在 macOS arm64、macOS x64 和 Windows x64 原生 Runner 上构建 
 
 ## Windows GUI E2E
 
-Windows x64 CI 在完成真实 Tauri Release 构建后，会运行一条 WebdriverIO GUI E2E（端到端界面测试）：启动应用，确认诊断页出现，依次验证开始、进度、取消、再次运行、完成和可复现清单。测试依赖隔离在 `tests/e2e`，不会进入最终用户安装包。
+Windows x64 CI 先生成普通 Production bundle，再构建一个仅启用 `e2e` Cargo feature 的 Release 优化 Test Build。WebdriverIO 通过 embedded provider 启动这个真实 Tauri 应用，建立会话并确认一个稳定的关键页面元素可见。任何会话或断言失败都会阻塞 Windows Job。
 
-Windows 开发者本地执行前需要完成 Release 构建，并安装锁定版本的外部驱动：
+Windows 开发者本地执行时不需要安装 `tauri-driver` 或 MSEdgeDriver：
 
 ```powershell
-cargo install tauri-driver --version 2.0.6 --locked
 npm ci --prefix tests/e2e
+$env:CARGO_TARGET_DIR = "$PWD\apps\desktop\src-tauri\target\e2e"
+npm run tauri -- build --no-bundle --features e2e
+$env:SCOPE_E2E_APP = "$env:CARGO_TARGET_DIR\release\scope-desktop-dev.exe"
 npm test --prefix tests/e2e
 ```
 
-默认测试路径是 `apps/desktop/src-tauri/target/release/scope-desktop-dev.exe`。如需验证其他开发产物，可以通过 `SCOPE_E2E_APP` 提供绝对路径。该测试使用真实 Release 应用和冻结 sidecar，但只控制 WebView2 页面，不验证 NSIS 安装、SmartScreen、Defender、原生窗口、DPI 或字体；这些项目必须留给真实 Windows UAT。
+默认测试路径是 `apps/desktop/src-tauri/target/e2e/release/scope-desktop-dev.exe`。如需验证其他测试产物，可以通过 `SCOPE_E2E_APP` 提供绝对路径。该测试使用真实 Release 优化应用和冻结 sidecar，但只控制 WebView 页面，不验证 NSIS 安装、SmartScreen、Defender、原生窗口、DPI 或字体；这些项目必须留给真实 Windows UAT。
 
-当前 GitHub-hosted Windows Runner 的 WebView2 Runtime 150 存在已确认的上游自动化回归：管理员权限下 EdgeDriver 无法建立调试会话。CI 只在同时识别到 Runtime 150、`DevToolsActivePort file doesn't exist`、最终失败属于会话创建，并且诊断 spec 尚未开始时记录临时警告；其他 E2E 失败仍会阻塞。该例外由 `tests/e2e/run-windows-ci.ps1` 精确判断，跟踪 [wry #1782](https://github.com/tauri-apps/wry/issues/1782)，上游稳定修复可用后必须删除。在此之前不能把 Windows GUI E2E 记录为通过。
+embedded WebDriver 是 **test-only capability（仅供测试的能力）**。插件依赖是默认关闭的 optional dependency，并只在 `#[cfg(feature = "e2e")]` 中注册。CI 会验证 Production feature graph 不含该插件，正式 bundle 在 Test Build 前生成，且独立 E2E target 不会上传。不得将 `e2e` 加入默认或公开发布构建。
 
 建议的最小 Windows UAT 环境是：Windows 11 x64 物理机或行为接近真实用户的虚拟机、普通非管理员账户、启用 Defender 与 SmartScreen、当前稳定版 WebView2 Runtime、至少 1920×1080 显示环境，并分别检查 100% 和 150% 缩放。测试机不应预装项目开发环境或 Python。验收时记录 Windows build、WebView2 版本、安装包 SHA、出现的安全提示和失败截图。
 

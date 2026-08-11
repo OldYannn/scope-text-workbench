@@ -94,19 +94,23 @@ UAT 未由项目负责人实际执行和反馈前，证据状态只能写为“�
 
 汇报时应同时说明通过、失败、未执行或受阻，必要时附测试数量、平台、构建类型、提交 SHA 或 CI 链接。
 
+CI 应在 Workflow Summary 中生成简短状态表，至少分开 Automated Test、三个目标平台 Build、Windows GUI E2E、Computer Use GUI Test 和 Project Owner UAT。如果 matrix 结果无法精确定位某一平台，摘要应保守标记为 `BLOCKED`，再引导查看具体 Job；不得用 Workflow 整体绿色掩盖 `NOT RUN` 或警告放行。
+
 ## 8. Windows-first 的平台验证分层
 
 SCOPE 正式采用 Windows-first，cross-platform supported（Windows 优先、跨平台正式支持）策略。Windows 是最终用户体验的参考平台，macOS 是当前主要开发环境并保持正式支持。两个平台要求核心研究能力和结果一致，不要求操作系统原生界面像素级一致。
 
 Windows 验证必须区分以下三层：
 
-| 层级                      | 主要内容                                                  | 能够证明                             | 不能替代                             |
-| ------------------------- | --------------------------------------------------------- | ------------------------------------ | ------------------------------------ |
-| Windows Automated Test    | Rust、Python、React、NDJSON 协议、sidecar 和可复现清单    | 内部逻辑和跨进程契约可重复验证       | 真实 GUI 交互                        |
-| Windows GUI E2E           | CI 启动真实 Tauri Release 应用，运行一条最短 WebView 流程 | 应用可启动，关键页面和诊断交互可运行 | 安装器、安全提示、原生窗口和视觉体验 |
-| Windows Project Owner UAT | 真实 Windows 环境中的安装、首次启动和人工观察             | 用户实际安装与使用体验               | 每次提交的自动化回归检查             |
+| 层级                      | 主要内容                                                | 能够证明                             | 不能替代                             |
+| ------------------------- | ------------------------------------------------------- | ------------------------------------ | ------------------------------------ |
+| Windows Automated Test    | Rust、Python、React、NDJSON 协议、sidecar 和可复现清单  | 内部逻辑和跨进程契约可重复验证       | 真实 GUI 交互                        |
+| Windows GUI E2E           | CI 启动启用 test-only WebDriver 的真实 Tauri Test Build | 会话可建立，应用可启动且关键页面可见 | 安装器、安全提示、原生窗口和视觉体验 |
+| Windows Project Owner UAT | 真实 Windows 环境中的安装、首次启动和人工观察           | 用户实际安装与使用体验               | 每次提交的自动化回归检查             |
 
 Windows GUI E2E 只覆盖应用 WebView 内的关键流程。即使该检查通过，也不能写成“Windows 用户体验已经验证”。真实 Windows UAT 应至少检查 NSIS 安装、首次启动、SmartScreen / Defender、窗口、100% 与 150% DPI、中文字体和整体操作体验；它不是每次提交的阻塞条件，但应是重要 Milestone 和 Public Release 前的必要验收。
+
+embedded WebDriver 只能存在于显式 Test Build。Production Build 必须从依赖图和插件注册两个层面排除该能力；任何默认启用或将 Test Build 作为发布产物的改动都必须阻塞。
 
 macOS 继续进行自动化测试和原生构建，并可按本规范使用最小必要的本机 Computer Use smoke test。不得为了平台表面一致而重复验证已经由自动化测试覆盖的内部逻辑。
 
