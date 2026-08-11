@@ -73,18 +73,23 @@ jobs:
 
       - run: npm ci
       - run: python -m pip install -e "engine[packaging]"
-      - run: python scripts/build_sidecar.py --expected-target ${{ matrix.target }}
-      - run: python scripts/verify_sidecar.py
+      - id: sidecar_build
+        run: python scripts/build_sidecar.py --expected-target ${{ matrix.target }}
+      - id: sidecar_verify
+        run: python scripts/verify_sidecar.py
       - run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
-      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
-      - run: npm run tauri -- build --bundles ${{ matrix.bundles }}
+      - id: rust_tests
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - id: production_build
+        run: npm run tauri -- build --bundles ${{ matrix.bundles }}
 
       - name: Install Windows GUI E2E dependencies
         if: matrix.target == 'x86_64-pc-windows-msvc'
         run: npm ci --prefix tests/e2e
 
       - name: Verify production build excludes embedded WebDriver
+        id: production_isolation
         if: matrix.target == 'x86_64-pc-windows-msvc'
         shell: pwsh
         run: |
@@ -95,22 +100,72 @@ jobs:
           cargo tree --manifest-path apps/desktop/src-tauri/Cargo.toml --features e2e --invert tauri-plugin-wdio-webdriver
 
       - name: Build Windows GUI E2E test application
+        id: e2e_build
         if: matrix.target == 'x86_64-pc-windows-msvc'
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/apps/desktop/src-tauri/target/e2e
         run: npm run tauri -- build --no-bundle --features e2e
 
       - name: Run Windows GUI E2E smoke test
+        id: e2e_smoke
         if: matrix.target == 'x86_64-pc-windows-msvc'
         env:
           SCOPE_E2E_APP: ${{ github.workspace }}/apps/desktop/src-tauri/target/e2e/release/scope-desktop-dev.exe
         run: npm test --prefix tests/e2e
 
       - name: Verify macOS application bundle
+        id: macos_bundle
         if: runner.os == 'macOS'
         run: python scripts/verify_macos_bundle.py "apps/desktop/src-tauri/target/release/bundle/macos/SCOPE 文镜 (Development).app"
 
-      - uses: actions/upload-artifact@v4
+      - name: Record platform validation evidence
+        if: always()
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          SIDECAR_BUILD: ${{ steps.sidecar_build.outcome }}
+          SIDECAR_VERIFY: ${{ steps.sidecar_verify.outcome }}
+          RUST_TESTS: ${{ steps.rust_tests.outcome }}
+          PRODUCTION_BUILD: ${{ steps.production_build.outcome }}
+          PRODUCTION_ISOLATION: ${{ steps.production_isolation.outcome }}
+          E2E_BUILD: ${{ steps.e2e_build.outcome }}
+          E2E_SMOKE: ${{ steps.e2e_smoke.outcome }}
+          MACOS_BUNDLE: ${{ steps.macos_bundle.outcome }}
+        run: |
+          automated=BLOCKED
+          build=BLOCKED
+          windows_gui_e2e=NOT_RUN
+          if [[ "$SIDECAR_BUILD" == "success" && "$SIDECAR_VERIFY" == "success" && "$RUST_TESTS" == "success" ]]; then
+            automated=PASS
+          fi
+          if [[ "$TARGET" == "x86_64-pc-windows-msvc" && "$PRODUCTION_BUILD" == "success" ]]; then
+            build=PASS
+          elif [[ "$TARGET" != "x86_64-pc-windows-msvc" && "$PRODUCTION_BUILD" == "success" && "$MACOS_BUNDLE" == "success" ]]; then
+            build=PASS
+          fi
+          if [[ "$TARGET" == "x86_64-pc-windows-msvc" ]]; then
+            windows_gui_e2e=BLOCKED
+            if [[ "$PRODUCTION_ISOLATION" == "success" && "$E2E_BUILD" == "success" && "$E2E_SMOKE" == "success" ]]; then
+              windows_gui_e2e=PASS
+            fi
+          fi
+          mkdir -p validation-evidence
+          {
+            echo "TARGET=$TARGET"
+            echo "AUTOMATED=$automated"
+            echo "BUILD=$build"
+            echo "WINDOWS_GUI_E2E=$windows_gui_e2e"
+          } > "validation-evidence/$TARGET.env"
+
+      - name: Upload platform validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: validation-${{ matrix.target }}
+          path: validation-evidence/${{ matrix.target }}.env
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v7
         with:
           name: scope-development-${{ matrix.target }}
           path: apps/desktop/src-tauri/target/release/bundle/**
@@ -123,25 +178,53 @@ jobs:
     runs-on: ubuntu-latest
     env:
       QUALITY_RESULT: ${{ needs.quality.result }}
-      DESKTOP_RESULT: ${{ needs.desktop-host.result }}
     steps:
+      - name: Download platform validation evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: validation-*
+          path: validation-evidence
+          merge-multiple: true
+
       - name: Write validation summary
         shell: bash
         run: |
-          automated_status=$([[ "$QUALITY_RESULT" == "success" ]] && echo PASS || echo BLOCKED)
-          desktop_status=$([[ "$DESKTOP_RESULT" == "success" ]] && echo PASS || echo BLOCKED)
+          automated_status=BLOCKED
+          macos_arm64_status=BLOCKED
+          macos_x64_status=BLOCKED
+          windows_x64_status=BLOCKED
+          windows_gui_e2e_status=BLOCKED
+          platform_automated=PASS
+          for evidence in validation-evidence/*.env; do
+            [[ -f "$evidence" ]] || continue
+            unset TARGET AUTOMATED BUILD WINDOWS_GUI_E2E
+            source "$evidence"
+            [[ "$AUTOMATED" == "PASS" ]] || platform_automated=BLOCKED
+            case "$TARGET" in
+              aarch64-apple-darwin) macos_arm64_status="$BUILD" ;;
+              x86_64-apple-darwin) macos_x64_status="$BUILD" ;;
+              x86_64-pc-windows-msvc)
+                windows_x64_status="$BUILD"
+                windows_gui_e2e_status="$WINDOWS_GUI_E2E"
+                ;;
+            esac
+          done
+          if [[ "$QUALITY_RESULT" == "success" && "$platform_automated" == "PASS" ]]; then
+            automated_status=PASS
+          fi
           {
             echo "## Validation Summary"
             echo
             echo "| Validation | Status |"
             echo "| --- | --- |"
             echo "| Automated Test | $automated_status |"
-            echo "| macOS arm64 Build | $desktop_status |"
-            echo "| macOS x64 Build | $desktop_status |"
-            echo "| Windows x64 Build | $desktop_status |"
-            echo "| Windows GUI E2E | $desktop_status |"
+            echo "| macOS arm64 Build | $macos_arm64_status |"
+            echo "| macOS x64 Build | $macos_x64_status |"
+            echo "| Windows x64 Build | $windows_x64_status |"
+            echo "| Windows GUI E2E | $windows_gui_e2e_status |"
             echo "| Computer Use GUI Test | NOT RUN |"
             echo "| Project Owner UAT | NOT RUN |"
             echo
-            echo "> Desktop matrix 中任一平台失败时，本摘要保守地将四项平台证据标为 BLOCKED；请以对应 matrix Job 日志定位具体平台。"
+            echo "> 摘要从每个 matrix Job 独立产生的证据文件汇总；证据缺失或步骤未成功时保守标记为 BLOCKED。"
           } >> "$GITHUB_STEP_SUMMARY"
