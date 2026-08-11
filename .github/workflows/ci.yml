@@ -195,22 +195,30 @@ jobs:
           macos_x64_status=BLOCKED
           windows_x64_status=BLOCKED
           windows_gui_e2e_status=BLOCKED
-          platform_automated=PASS
+          macos_arm64_automated=BLOCKED
+          macos_x64_automated=BLOCKED
+          windows_x64_automated=BLOCKED
           for evidence in validation-evidence/*.env; do
             [[ -f "$evidence" ]] || continue
             unset TARGET AUTOMATED BUILD WINDOWS_GUI_E2E
             source "$evidence"
-            [[ "$AUTOMATED" == "PASS" ]] || platform_automated=BLOCKED
             case "$TARGET" in
-              aarch64-apple-darwin) macos_arm64_status="$BUILD" ;;
-              x86_64-apple-darwin) macos_x64_status="$BUILD" ;;
+              aarch64-apple-darwin)
+                macos_arm64_automated="$AUTOMATED"
+                macos_arm64_status="$BUILD"
+                ;;
+              x86_64-apple-darwin)
+                macos_x64_automated="$AUTOMATED"
+                macos_x64_status="$BUILD"
+                ;;
               x86_64-pc-windows-msvc)
+                windows_x64_automated="$AUTOMATED"
                 windows_x64_status="$BUILD"
                 windows_gui_e2e_status="$WINDOWS_GUI_E2E"
                 ;;
             esac
           done
-          if [[ "$QUALITY_RESULT" == "success" && "$platform_automated" == "PASS" ]]; then
+          if [[ "$QUALITY_RESULT" == "success" && "$macos_arm64_automated" == "PASS" && "$macos_x64_automated" == "PASS" && "$windows_x64_automated" == "PASS" ]]; then
             automated_status=PASS
           fi
           {
