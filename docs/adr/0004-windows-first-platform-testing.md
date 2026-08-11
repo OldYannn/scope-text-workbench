@@ -49,6 +49,8 @@ Milestone 0 采用 WebdriverIO、`@wdio/tauri-service` 和 `tauri-plugin-wdio-we
 - npm 测试依赖与插件版本均锁定为 `1.3.0`；embedded 路径不启动外部 `tauri-driver` / MSEdgeDriver；
 - 任何 Test Build、会话或元素断言失败都直接阻塞 Windows Job，不设 warning 放行。
 
+当前 `@wdio/tauri-service 1.3.0` 在 Windows `onPrepare` 中仍会先执行 EdgeDriver 兼容性预检，必要时缓存或下载匹配文件；这是 service 尚未按 provider 短路的工具链行为。embedded 会话仍由 Test Build 内的 server 提供，不启动或调用外部 driver。后续升级 service 时应检查该冗余预检是否已移除。
+
 原 external provider 依赖 EdgeDriver 注入调试端口，与 WebView2 Runtime 150 在 elevated host 中的有意安全强化冲突。这不再被定义为“等待 WebView2 上游修复”；embedded server 通过 Test Build 内部的 WebView 原生 API 工作，避开该外部调试端口。
 
 2026-08-11 的 [GitHub Actions run 31454320984](https://github.com/OldYannn/scope-text-workbench/actions/runs/31454320984) 在 Windows x64 上完成了 Production 隔离检查、启动 Test Build、建立 embedded WebDriver 会话和关键元素断言。旧的 WebView2 150 日志匹配 wrapper 已删除，Windows GUI E2E 恢复为真正的 blocking test。

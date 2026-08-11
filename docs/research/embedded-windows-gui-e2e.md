@@ -53,7 +53,9 @@ SCOPE Test Build 内的 tauri-plugin-wdio-webdriver
 WebView2 原生 API
 ```
 
-service 会启动指定的 SCOPE 可执行文件、设置 `TAURI_WEBDRIVER_PORT`、轮询本机 `/status`，然后直接连接应用内的 W3C WebDriver HTTP server；测试结束时负责终止应用。它不会启动 `tauri-driver` 或下载 MSEdgeDriver。[WebdriverIO Plugin Setup](https://webdriver.io/docs/desktop-testing/tauri/plugin-setup/)、[embeddedProvider.ts](https://github.com/webdriverio/desktop-mobile/blob/main/packages/tauri-service/src/embeddedProvider.ts)
+service 会启动指定的 SCOPE 可执行文件、设置 `TAURI_WEBDRIVER_PORT`、轮询本机 `/status`，然后直接连接应用内的 W3C WebDriver HTTP server；测试结束时负责终止应用。embedded 会话不会启动或调用 `tauri-driver` / MSEdgeDriver。[WebdriverIO Plugin Setup](https://webdriver.io/docs/desktop-testing/tauri/plugin-setup/)、[embeddedProvider.ts](https://github.com/webdriverio/desktop-mobile/blob/main/packages/tauri-service/src/embeddedProvider.ts)
+
+需要注意一个 `@wdio/tauri-service 1.3.0` 的工具链细节：它在 Windows `onPrepare` 中仍会无条件执行 EdgeDriver 兼容性预检，必要时缓存或下载匹配文件，然后才进入 embedded provider。该文件不参与后续会话；将 `autoDownloadEdgeDriver` 强制设为 `false` 会在 Runner 未预装匹配 driver 时让预检提前失败。本次 Spike 因此保留 service 默认值，并以 embedded server 启动日志和会话地址确认真正执行路径。
 
 插件默认监听 `127.0.0.1:4445`。桌面平台只绑定 loopback，不对局域网或互联网开放；但它仍然提供点击、输入、脚本执行等强自动化能力，所以只能存在于明确的 Test Build。[plugin server 源码](https://github.com/webdriverio/desktop-mobile/blob/main/packages/tauri-plugin-webdriver/src/server/mod.rs)
 

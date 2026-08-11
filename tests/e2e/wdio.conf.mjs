@@ -29,7 +29,6 @@ export const config = {
         appBinaryPath,
         driverProvider: "embedded",
         embeddedPort: 4445,
-        autoDownloadEdgeDriver: false,
         startTimeout: 60_000,
         logLevel: "info",
       },
