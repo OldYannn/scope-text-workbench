@@ -115,7 +115,12 @@ async fn diagnostic_crash(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    #[cfg(feature = "e2e")]
+    let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+
+    builder
         .manage(EngineSupervisor::new(CommandSpec::for_current_build()))
         .invoke_handler(tauri::generate_handler![
             engine_describe,

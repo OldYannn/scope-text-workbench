@@ -1,4 +1,3 @@
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,11 +7,8 @@ const appBinaryPath =
   process.env.SCOPE_E2E_APP ??
   path.join(
     repositoryRoot,
-    "apps/desktop/src-tauri/target/release/scope-desktop-dev.exe",
+    "apps/desktop/src-tauri/target/e2e/release/scope-desktop-dev.exe",
   );
-const webviewUserDataFolder =
-  process.env.SCOPE_E2E_WEBVIEW_DATA_FOLDER ??
-  path.join(os.tmpdir(), `scope-wdio-webview2-${process.pid}`);
 
 export const config = {
   runner: "local",
@@ -23,7 +19,6 @@ export const config = {
       browserName: "tauri",
       "tauri:options": {
         application: appBinaryPath,
-        webviewOptions: { userDataFolder: webviewUserDataFolder },
       },
     },
   ],
@@ -32,9 +27,8 @@ export const config = {
       "tauri",
       {
         appBinaryPath,
-        driverProvider: "external",
-        autoInstallTauriDriver: false,
-        autoDownloadEdgeDriver: true,
+        driverProvider: "embedded",
+        embeddedPort: 4445,
         startTimeout: 60_000,
         logLevel: "info",
       },

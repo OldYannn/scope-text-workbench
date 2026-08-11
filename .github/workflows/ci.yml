@@ -82,13 +82,29 @@ jobs:
 
       - name: Install Windows GUI E2E dependencies
         if: matrix.target == 'x86_64-pc-windows-msvc'
+        run: npm ci --prefix tests/e2e
+
+      - name: Verify production build excludes embedded WebDriver
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: pwsh
         run: |
-          cargo install tauri-driver --version 2.0.6 --locked
-          npm ci --prefix tests/e2e
+          $productionTree = cargo tree --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features
+          if ($productionTree -match "tauri-plugin-wdio-webdriver") {
+            throw "Production dependency graph includes the test-only WebDriver plugin."
+          }
+          cargo tree --manifest-path apps/desktop/src-tauri/Cargo.toml --features e2e --invert tauri-plugin-wdio-webdriver
+
+      - name: Build Windows GUI E2E test application
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/apps/desktop/src-tauri/target/e2e
+        run: npm run tauri -- build --no-bundle --features e2e
 
       - name: Run Windows GUI E2E smoke test
         if: matrix.target == 'x86_64-pc-windows-msvc'
-        run: tests/e2e/run-windows-ci.ps1
+        env:
+          SCOPE_E2E_APP: ${{ github.workspace }}/apps/desktop/src-tauri/target/e2e/release/scope-desktop-dev.exe
+        run: npm test --prefix tests/e2e
 
       - name: Verify macOS application bundle
         if: runner.os == 'macOS'
@@ -99,3 +115,33 @@ jobs:
           name: scope-development-${{ matrix.target }}
           path: apps/desktop/src-tauri/target/release/bundle/**
           if-no-files-found: error
+
+  validation-summary:
+    name: Validation Summary
+    if: always()
+    needs: [quality, desktop-host]
+    runs-on: ubuntu-latest
+    env:
+      QUALITY_RESULT: ${{ needs.quality.result }}
+      DESKTOP_RESULT: ${{ needs.desktop-host.result }}
+    steps:
+      - name: Write validation summary
+        shell: bash
+        run: |
+          automated_status=$([[ "$QUALITY_RESULT" == "success" ]] && echo PASS || echo BLOCKED)
+          desktop_status=$([[ "$DESKTOP_RESULT" == "success" ]] && echo PASS || echo BLOCKED)
+          {
+            echo "## Validation Summary"
+            echo
+            echo "| Validation | Status |"
+            echo "| --- | --- |"
+            echo "| Automated Test | $automated_status |"
+            echo "| macOS arm64 Build | $desktop_status |"
+            echo "| macOS x64 Build | $desktop_status |"
+            echo "| Windows x64 Build | $desktop_status |"
+            echo "| Windows GUI E2E | $desktop_status |"
+            echo "| Computer Use GUI Test | NOT RUN |"
+            echo "| Project Owner UAT | NOT RUN |"
+            echo
+            echo "> Desktop matrix 中任一平台失败时，本摘要保守地将四项平台证据标为 BLOCKED；请以对应 matrix Job 日志定位具体平台。"
+          } >> "$GITHUB_STEP_SUMMARY"
