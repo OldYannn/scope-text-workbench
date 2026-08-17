@@ -1,7 +1,7 @@
 # 项目总纲 — SCOPE 文镜
 
 > 项目状态：Pre-alpha / 项目立项阶段
-> 最后更新：2026-08-10
+> 最后更新：2026-08-17
 > 项目正式名称（暂定）：SCOPE
 > 中文品牌名：文镜
 > 中文对外名称：SCOPE 文镜
@@ -614,13 +614,7 @@ Milestone 0 和首个 Public Alpha 暂不增加 Windows ARM64 或 Linux，避免
 - 自动化测试；
 - CI 配置。
 
-License 建议后续比较：
-
-- Apache-2.0；
-- MIT；
-- GPL-3.0。
-
-未经项目负责人明确同意，Codex 不得自行决定 License。
+项目负责人已确认：SCOPE 采用 **Apache License 2.0** 开源。任何后续 License 变更仍必须取得项目负责人明确同意。
 
 不要自创许可证强制研究者引用论文。
 
@@ -671,7 +665,7 @@ License 建议后续比较：
 - AGENTS.md；
 - PROJECT_BRIEF.md；
 - ROADMAP；
-- License 方案比较；
+- Apache License 2.0 标准许可证；
 - CI；
 - 测试框架；
 - 最小可运行应用壳。
@@ -919,7 +913,7 @@ License 建议后续比较：
 以下事项最终决策权属于项目负责人：
 
 - 项目品牌、正式名称及对外命名变更；
-- License；
+- License 变更；
 - 核心框架；
 - 数据隐私政策；
 - 重大功能范围调整；

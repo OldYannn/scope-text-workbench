@@ -117,6 +117,6 @@ embedded WebDriver 是 **test-only capability（仅供测试的能力）**。插
 
 ## 开发阶段临时标识
 
-npm workspace、Python distribution、Rust crate 和 Tauri Bundle ID 当前包含 `dev`，或已明确标记为开发占位符。在技术标识和 License 获批前，不得发布到 Package Registry，也不得用于公开 Release。
+npm workspace、Python distribution、Rust crate 和 Tauri Bundle ID 当前包含 `dev`，或已明确标记为开发占位符。在技术标识获批前，不得发布到 Package Registry，也不得用于公开 Release。项目代码采用 Apache License 2.0。
 
 Tauri 自动生成的应用图标同样只是临时开发资产。公开构建前必须替换为获批的 SCOPE 品牌资产。

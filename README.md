@@ -119,6 +119,6 @@ Milestone 0 当前已经建立 React / Tauri 桌面壳、Python sidecar 的初�
 
 ## License
 
-尚未确定。
+SCOPE 采用 **Apache License 2.0** 开源。用户可以在 Apache-2.0 条款下使用、修改和分发本项目。
 
-在正式确认 License 前，不应默认假定项目使用 MIT、Apache-2.0 或 GPL。
+完整法律条款以仓库根目录的 [`LICENSE`](LICENSE) 为准。学术引用建议与软件法律授权相互独立；正式 Citation 信息将在后续研究发布版本补充。

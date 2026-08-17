@@ -18,7 +18,7 @@ SCOPE 当前处于 Pre-alpha 阶段。在关键技术风险得到验证前，路
 - [ ] 在真实 Windows x64 环境完成安装、首次启动、安全提示、DPI、字体和体验 UAT
 - [x] 在 macOS arm64 完成安装与首次启动的最小 Computer Use smoke test
 - [ ] 用获批的 SCOPE 品牌资产替换开发模板图标
-- [ ] 比较 License 方案并取得项目负责人确认
+- [x] 由项目负责人确认采用 Apache License 2.0
 
 ## Milestone 1 — 语料管理与文本清洗
 
