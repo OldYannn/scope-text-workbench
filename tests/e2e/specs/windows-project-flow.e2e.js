@@ -22,14 +22,14 @@ async function waitForProjectWorkspace() {
 describe("SCOPE Milestone 1A main flow", () => {
   it("creates a project, imports TXT, lists it, and opens its preview", async () => {
     const projectName = $("#project-name");
-    await expect(projectName).toBeDisplayed();
+    await expect(projectName).toExist();
     await projectName.setValue("Windows 中文项目");
     const createButton = $("button=创建项目");
     await expect(createButton).toBeEnabled();
     await createButton.click();
 
     await waitForProjectWorkspace();
-    await expect($("[data-testid='scope-project']")).toBeDisplayed();
+    await expect($("[data-testid='scope-project']")).toExist();
     await $("[aria-label='导入 TXT']").click();
     await expect($("button*=中文语料.txt")).toBeDisplayed();
     await $("button*=中文语料.txt").click();

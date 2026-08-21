@@ -31,15 +31,24 @@ impl ApprovedPaths {
     }
 
     fn require(set: &Mutex<HashSet<PathBuf>>, path: impl AsRef<Path>) -> Result<(), String> {
-        let canonical = Self::canonical(path)?;
-        if set
+        let supplied = path.as_ref();
+        let approvals = set
             .lock()
-            .map_err(|_| "Path approval state is unavailable".to_string())?
-            .contains(&canonical)
-        {
+            .map_err(|_| "Path approval state is unavailable".to_string())?;
+        if approvals.contains(supplied) {
             Ok(())
         } else {
-            Err("The path was not approved by the system file picker".into())
+            drop(approvals);
+            let canonical = Self::canonical(supplied)?;
+            if set
+                .lock()
+                .map_err(|_| "Path approval state is unavailable".to_string())?
+                .contains(&canonical)
+            {
+                Ok(())
+            } else {
+                Err("The path was not approved by the system file picker".into())
+            }
         }
     }
 
@@ -49,6 +58,16 @@ impl ApprovedPaths {
 
     fn approve_project(&self, path: impl AsRef<Path>) -> Result<String, String> {
         Self::insert(&self.projects, path)
+    }
+
+    fn approve_created_project(&self, path: impl AsRef<Path>) -> Result<String, String> {
+        let supplied = path.as_ref().to_path_buf();
+        let approved = Self::canonical(&supplied).unwrap_or(supplied);
+        self.projects
+            .lock()
+            .map_err(|_| "Path approval state is unavailable".to_string())?
+            .insert(approved.clone());
+        Ok(approved.to_string_lossy().into_owned())
     }
 
     fn approve_source(&self, path: impl AsRef<Path>) -> Result<String, String> {
@@ -200,7 +219,10 @@ async fn project_create(
         .pointer("/result/project/project_path")
         .and_then(Value::as_str)
     {
-        approved.approve_project(project_path)?;
+        // The trusted local engine has just created this path. Some Windows
+        // verbatim paths cannot be canonicalized a second time even though
+        // they exist, so retain the exact engine-returned path as a fallback.
+        approved.approve_created_project(project_path)?;
     }
     Ok(response)
 }
@@ -412,10 +434,11 @@ mod approved_path_tests {
         fs::write(&source, "语料").expect("test source should be created");
         let approved = ApprovedPaths::default();
 
-        approved
+        let approved_parent = approved
             .approve_parent(&root)
             .expect("parent approval should succeed");
         assert!(approved.require_parent(&root).is_ok());
+        assert!(approved.require_parent(approved_parent).is_ok());
         assert!(approved.require_project(&project).is_err());
 
         approved
