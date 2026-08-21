@@ -18,8 +18,27 @@ struct ApprovedPaths {
 }
 
 impl ApprovedPaths {
+    #[cfg(windows)]
+    fn comparison_path(path: PathBuf) -> PathBuf {
+        let display = path.to_string_lossy();
+        if let Some(rest) = display.strip_prefix(r"\\?\UNC\") {
+            PathBuf::from(format!(r"\\{rest}"))
+        } else if let Some(rest) = display.strip_prefix(r"\\?\") {
+            PathBuf::from(rest)
+        } else {
+            path
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn comparison_path(path: PathBuf) -> PathBuf {
+        path
+    }
+
     fn canonical(path: impl AsRef<Path>) -> Result<PathBuf, String> {
-        std::fs::canonicalize(path).map_err(|_| "The selected path is no longer available".into())
+        std::fs::canonicalize(path)
+            .map(Self::comparison_path)
+            .map_err(|_| "The selected path is no longer available".into())
     }
 
     fn insert(set: &Mutex<HashSet<PathBuf>>, path: impl AsRef<Path>) -> Result<String, String> {
@@ -31,15 +50,15 @@ impl ApprovedPaths {
     }
 
     fn require(set: &Mutex<HashSet<PathBuf>>, path: impl AsRef<Path>) -> Result<(), String> {
-        let supplied = path.as_ref();
+        let supplied = Self::comparison_path(path.as_ref().to_path_buf());
         let approvals = set
             .lock()
             .map_err(|_| "Path approval state is unavailable".to_string())?;
-        if approvals.contains(supplied) {
+        if approvals.contains(&supplied) {
             Ok(())
         } else {
             drop(approvals);
-            let canonical = Self::canonical(supplied)?;
+            let canonical = Self::canonical(&supplied)?;
             if set
                 .lock()
                 .map_err(|_| "Path approval state is unavailable".to_string())?
@@ -61,7 +80,7 @@ impl ApprovedPaths {
     }
 
     fn approve_created_project(&self, path: impl AsRef<Path>) -> Result<String, String> {
-        let supplied = path.as_ref().to_path_buf();
+        let supplied = Self::comparison_path(path.as_ref().to_path_buf());
         let approved = Self::canonical(&supplied).unwrap_or(supplied);
         self.projects
             .lock()

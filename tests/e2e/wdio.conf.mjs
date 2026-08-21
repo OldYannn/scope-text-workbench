@@ -43,6 +43,6 @@ export const config = {
   // Tauri execute API. The service's defensive window-focus checks may each
   // consume five seconds on CI, so the real multi-step project flow needs a
   // larger overall Mocha budget than the old single-screen smoke test.
-  mochaOpts: { ui: "bdd", timeout: 180_000 },
+  mochaOpts: { ui: "bdd", timeout: 300_000 },
   beforeTest: () => console.info("SCOPE_E2E_SPEC_STARTED"),
 };

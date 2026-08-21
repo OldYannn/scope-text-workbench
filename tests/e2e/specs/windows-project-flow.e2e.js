@@ -19,6 +19,25 @@ async function waitForProjectWorkspace() {
   );
 }
 
+async function waitForImportedDocument() {
+  await browser.waitUntil(
+    async () => {
+      const document = $("button*=中文语料.txt");
+      if (await document.isExisting()) return true;
+
+      const notice = $(".notice");
+      if (await notice.isExisting()) {
+        const message = await notice.getText();
+        if (message.startsWith("无法导入语料") || message.includes("个失败")) {
+          throw new Error(`SCOPE TXT import failed: ${message}`);
+        }
+      }
+      return false;
+    },
+    { timeout: 60_000, interval: 1_000 },
+  );
+}
+
 describe("SCOPE Milestone 1A main flow", () => {
   it("creates a project, imports TXT, lists it, and opens its preview", async () => {
     const projectName = $("#project-name");
@@ -29,9 +48,8 @@ describe("SCOPE Milestone 1A main flow", () => {
     await createButton.click();
 
     await waitForProjectWorkspace();
-    await expect($("[data-testid='scope-project']")).toExist();
     await $("[aria-label='导入 TXT']").click();
-    await expect($("button*=中文语料.txt")).toBeDisplayed();
+    await waitForImportedDocument();
     await $("button*=中文语料.txt").click();
     await expect($(".text-preview")).toHaveText(
       "这是一份用于验证项目主流程的中文语料。",
