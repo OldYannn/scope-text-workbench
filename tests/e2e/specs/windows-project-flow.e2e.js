@@ -1,4 +1,23 @@
-import { $, expect } from "@wdio/globals";
+import { $, browser, expect } from "@wdio/globals";
+
+async function waitForProjectWorkspace() {
+  await browser.waitUntil(
+    async () => {
+      const workspace = $("[data-testid='scope-project']");
+      if (await workspace.isExisting()) return true;
+
+      const notice = $(".notice");
+      if (await notice.isExisting()) {
+        const message = await notice.getText();
+        if (message.startsWith("无法创建项目")) {
+          throw new Error(`SCOPE project creation failed: ${message}`);
+        }
+      }
+      return false;
+    },
+    { timeout: 60_000, interval: 1_000 },
+  );
+}
 
 describe("SCOPE Milestone 1A main flow", () => {
   it("creates a project, imports TXT, lists it, and opens its preview", async () => {
@@ -9,6 +28,7 @@ describe("SCOPE Milestone 1A main flow", () => {
     await expect(createButton).toBeEnabled();
     await createButton.click();
 
+    await waitForProjectWorkspace();
     await expect($("[data-testid='scope-project']")).toBeDisplayed();
     await $("[aria-label='导入 TXT']").click();
     await expect($("button*=中文语料.txt")).toBeDisplayed();
