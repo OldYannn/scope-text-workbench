@@ -319,6 +319,10 @@ def handle_request(request: Any) -> dict[str, Any] | None:
 
 
 def main() -> None:
+    # NDJSON is always UTF-8. Explicitly configure redirected streams because
+    # frozen Windows processes may otherwise inherit the system ANSI code page.
+    sys.stdin.reconfigure(encoding="utf-8", errors="strict")  # type: ignore[union-attr]
+    sys.stdout.reconfigure(encoding="utf-8", errors="strict")  # type: ignore[union-attr]
     for line in sys.stdin:
         if not line.strip():
             continue

@@ -5,6 +5,7 @@ import os
 import queue
 import subprocess
 import sys
+import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -94,6 +95,35 @@ class EngineProcess:
 
 
 class SidecarProtocolContractTest(unittest.TestCase):
+    def test_protocol_streams_are_utf8_even_when_process_default_is_not(self) -> None:
+        environment = os.environ.copy()
+        source_path = str(ENGINE_ROOT / "src")
+        environment["PYTHONPATH"] = source_path
+        environment["PYTHONIOENCODING"] = "cp1252"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            request = {
+                "protocol_version": "0.1",
+                "request_id": "unicode-project",
+                "method": "project.create",
+                "params": {
+                    "name": "中文项目",
+                    "parent_path": temporary_directory,
+                },
+            }
+            completed = subprocess.run(
+                [sys.executable, "-u", "-m", "scope_engine"],
+                input=(json.dumps(request, ensure_ascii=False) + "\n").encode("utf-8"),
+                capture_output=True,
+                check=False,
+                env=environment,
+            )
+            created_names = [path.name for path in Path(temporary_directory).iterdir()]
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        response = json.loads(completed.stdout.decode("utf-8"))
+        self.assertEqual(response["result"]["project"]["name"], "中文项目")
+        self.assertEqual(created_names, ["中文项目"])
+
     def test_system_describe_reports_protocol_and_capability(self) -> None:
         request = {
             "protocol_version": "0.1",
