@@ -20,6 +20,14 @@ SCOPE 当前处于 Pre-alpha 阶段。在关键技术风险得到验证前，路
 - [ ] 用获批的 SCOPE 品牌资产替换开发模板图标
 - [x] 由项目负责人确认采用 Apache License 2.0
 
+### Milestone 0 Gate
+
+**READY FOR MILESTONE 1**
+
+2026-08-22，提交 `16c63bf` 的现有完整 CI 已全部通过：Automated Test、Windows x64 Build、Windows GUI E2E、macOS arm64 Build 和 macOS x64 Build。验证记录见 [GitHub Actions](https://github.com/OldYannn/scope-text-workbench/actions/runs/32512116725)。
+
+真实 Windows x64 项目负责人 UAT、正式品牌图标、发布级签名与公证继续保留为发布准备事项，但不阻塞 Milestone 1 产品功能开发。Milestone 0 不再为清空非阻塞 checkbox 扩大基础设施范围。
+
 ## Milestone 1 — 语料管理与文本清洗
 
 Milestone 0 Gate 通过后开始。具体范围以 `PROJECT_BRIEF.md` 为准。
