@@ -39,6 +39,10 @@ export const config = {
   waitforTimeout: 15_000,
   connectionRetryTimeout: 90_000,
   connectionRetryCount: 1,
-  mochaOpts: { ui: "bdd", timeout: 30_000 },
+  // Basic WebDriver commands remain available without exposing the test-only
+  // Tauri execute API. The service's defensive window-focus checks may each
+  // consume five seconds on CI, so the real multi-step project flow needs a
+  // larger overall Mocha budget than the old single-screen smoke test.
+  mochaOpts: { ui: "bdd", timeout: 180_000 },
   beforeTest: () => console.info("SCOPE_E2E_SPEC_STARTED"),
 };
