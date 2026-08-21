@@ -72,6 +72,7 @@ SCOPE（中文品牌名：文镜）是一个面向人文社会科学研究者的
 - [PROJECT_BRIEF.md](PROJECT_BRIEF.md)
 - [ROADMAP.md](ROADMAP.md)
 - [架构决策](docs/adr/0001-desktop-python-sidecar-architecture.md)
+- [项目目录格式](docs/adr/0005-portable-project-directory-format.md)
 - [开发环境说明](docs/development.md)
 
 ---
@@ -82,7 +83,7 @@ SCOPE（中文品牌名：文镜）是一个面向人文社会科学研究者的
 
 在 v1.0 之前可能发生较大规模的功能、UI 和数据格式调整。
 
-Milestone 0 当前已经建立 React / Tauri 桌面壳、Python sidecar 的初始 NDJSON 协议契约与自动化质量检查。非科研诊断切片已经打通进度、取消、异常恢复和最小可复现清单。Python sidecar 已在 Windows x64、macOS arm64 和 macOS x64 上完成原生冻结与 CI 打包验证；安装程序真实启动和项目负责人人工验收仍待进行。
+Milestone 0 已经建立 React / Tauri 桌面壳、Python sidecar 的初始 NDJSON 协议契约与跨平台自动化质量检查。Milestone 1A 已进入真实产品功能开发，支持创建或打开本地项目、导入 UTF-8 / UTF-8 BOM TXT、浏览语料并查看原文；关闭应用后，项目数据仍保存在可整体迁移的项目目录中。
 
 ---
 
@@ -100,7 +101,7 @@ Milestone 0 当前已经建立 React / Tauri 桌面壳、Python sidecar 的初�
 
 项目进入公开协作阶段前将补充 `CONTRIBUTING.md`。
 
-当前 Private / Pre-alpha 阶段的 README 以中文为主。进入 Public Alpha 前，将规划英文主版 `README.md` 与中文版 `README.zh-CN.md`。
+当前 Public / Pre-alpha 阶段的 README 以中文为主。进入 Public Alpha 前，将规划英文主版 `README.md` 与中文版 `README.zh-CN.md`。
 
 ---
 

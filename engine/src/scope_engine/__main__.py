@@ -7,11 +7,22 @@ import threading
 from typing import Any
 
 from scope_engine import __version__
+from scope_engine.project_store import (
+    ProjectError,
+    create_project,
+    get_document,
+    import_txt,
+    open_project,
+)
 
 PROTOCOL_VERSION = "0.1"
 CAPABILITIES = [
+    "corpus.import_txt",
     "diagnostic.crash",
     "diagnostic.run",
+    "document.get",
+    "project.create",
+    "project.open",
     "request.cancel",
     "system.describe",
 ]
@@ -215,6 +226,41 @@ def handle_request(request: Any) -> dict[str, Any] | None:
                 "capabilities": CAPABILITIES,
             },
         )
+    try:
+        if request["method"] == "project.create":
+            params = request["params"]
+            if not {"name", "parent_path"}.issubset(params):
+                raise ProjectError("invalid_params", "project.create requires name and parent_path")
+            return result_response(
+                request_id, create_project(params["name"], params["parent_path"])
+            )
+        if request["method"] == "project.open":
+            params = request["params"]
+            if "project_path" not in params:
+                raise ProjectError("invalid_params", "project.open requires project_path")
+            return result_response(request_id, open_project(params["project_path"]))
+        if request["method"] == "corpus.import_txt":
+            params = request["params"]
+            if not {"project_path", "file_paths"}.issubset(params):
+                raise ProjectError(
+                    "invalid_params", "corpus.import_txt requires project_path and file_paths"
+                )
+            return result_response(
+                request_id,
+                import_txt(params["project_path"], params["file_paths"]),
+            )
+        if request["method"] == "document.get":
+            params = request["params"]
+            if not {"project_path", "document_id"}.issubset(params):
+                raise ProjectError(
+                    "invalid_params", "document.get requires project_path and document_id"
+                )
+            return result_response(
+                request_id,
+                get_document(params["project_path"], params["document_id"]),
+            )
+    except ProjectError as error:
+        return error_response(error.code, error.message, request_id=request_id)
     if request["method"] == "diagnostic.run":
         params_error = validate_diagnostic_params(request_id, request["params"])
         if params_error is not None:

@@ -64,8 +64,12 @@ def verify(sidecar_path: Path) -> None:
                 "engine_version": "0.0.0",
                 "protocol_version": "0.1",
                 "capabilities": [
+                    "corpus.import_txt",
                     "diagnostic.crash",
                     "diagnostic.run",
+                    "document.get",
+                    "project.create",
+                    "project.open",
                     "request.cancel",
                     "system.describe",
                 ],

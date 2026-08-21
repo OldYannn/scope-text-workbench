@@ -1,21 +1,10 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
-type EngineMessage = {
-  request_id: string;
-  type: "progress" | "result" | "error";
-  progress?: { current: number; total: number; message: string };
-  result?: Record<string, unknown>;
-  error?: { code: string; message: string };
-};
-
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
-  listen: vi.fn(),
-  progressHandler: undefined as
-    ((event: { payload: EngineMessage }) => void) | undefined,
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -23,123 +12,149 @@ vi.mock("@tauri-apps/api/core", () => ({
   isTauri: () => true,
 }));
 
-vi.mock("@tauri-apps/api/event", () => ({
-  listen: mocks.listen,
-}));
+const emptyProject = {
+  project_id: "project-1",
+  name: "基层治理访谈",
+  created_at: "2026-08-21T08:00:00.000Z",
+  software_version: "0.0.0",
+  format_version: 1,
+  project_path: "/研究/基层治理访谈",
+  document_count: 0,
+  total_characters: 0,
+  last_imported_at: null,
+};
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((promiseResolve) => {
-    resolve = promiseResolve;
-  });
-  return { promise, resolve };
-}
+const document = {
+  document_id: "document-1",
+  original_filename: "访谈一.txt",
+  source_path: "/语料/访谈一.txt",
+  imported_at: "2026-08-21T08:05:00.000Z",
+  character_count: 8,
+  file_size: 24,
+  input_hash: "abc123",
+  file_format: "txt",
+  encoding: "utf-8",
+  import_status: "imported",
+};
 
-describe("diagnostic controls", () => {
+describe("Milestone 1A project workflow", () => {
   beforeEach(() => {
     mocks.invoke.mockReset();
-    mocks.listen.mockReset();
-    mocks.progressHandler = undefined;
-    mocks.listen.mockImplementation(
-      async (
-        _event: string,
-        handler: (event: { payload: EngineMessage }) => void,
-      ) => {
-        mocks.progressHandler = handler;
-        return () => undefined;
-      },
-    );
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "e2e_paths")
+        return Promise.reject(new Error("not available"));
+      throw new Error(`Unexpected command: ${command}`);
+    });
   });
 
   afterEach(() => cleanup());
 
-  it("ignores unrelated progress and clears busy state after completion", async () => {
-    const diagnostic = deferred<EngineMessage>();
+  it("creates a project, imports TXT files, and opens a text preview", async () => {
     mocks.invoke.mockImplementation((command: string) => {
-      if (command === "diagnostic_run") return diagnostic.promise;
+      if (command === "e2e_paths")
+        return Promise.reject(new Error("not available"));
+      if (command === "select_project_parent") return Promise.resolve("/研究");
+      if (command === "select_txt_files")
+        return Promise.resolve(["/语料/访谈一.txt"]);
+      if (command === "project_create") {
+        return Promise.resolve({
+          type: "result",
+          result: { project: emptyProject, documents: [] },
+        });
+      }
+      if (command === "corpus_import_txt") {
+        return Promise.resolve({
+          type: "result",
+          result: {
+            project: {
+              ...emptyProject,
+              document_count: 1,
+              total_characters: 8,
+              last_imported_at: document.imported_at,
+            },
+            entries: [
+              { status: "imported", document },
+              {
+                source_path: "/语料/乱码.txt",
+                status: "failed",
+                error: { code: "unsupported_encoding", message: "invalid" },
+              },
+              {
+                source_path: "/语料/丢失.txt",
+                status: "failed",
+                error: { code: "file_read_failed", message: "missing" },
+              },
+            ],
+          },
+        });
+      }
+      if (command === "document_get") {
+        return Promise.resolve({
+          type: "result",
+          result: { document: { ...document, text: "真实访谈文本内容" } },
+        });
+      }
       throw new Error(`Unexpected command: ${command}`);
     });
     const user = userEvent.setup();
     render(<App />);
 
-    const runButton = screen.getByRole("button", { name: "运行诊断" });
-    await user.click(runButton);
-    expect((runButton as HTMLButtonElement).disabled).toBe(true);
-    await waitFor(() => expect(mocks.progressHandler).toBeDefined());
+    await user.type(screen.getByLabelText("项目名称"), "基层治理访谈");
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    expect(
+      await screen.findByRole("heading", { name: "基层治理访谈" }),
+    ).toBeTruthy();
+    expect(screen.getByText("还没有导入语料")).toBeTruthy();
 
-    act(() => {
-      mocks.progressHandler?.({
-        payload: {
-          request_id: "another-request",
-          type: "progress",
-          progress: { current: 5, total: 5, message: "wrong request" },
-        },
-      });
-    });
-    expect(screen.getByLabelText("诊断进度 0%")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "导入 TXT" }));
+    expect(await screen.findByText("访谈一.txt")).toBeTruthy();
+    expect(screen.getByText("1 篇文档")).toBeTruthy();
+    const issues = within(screen.getByLabelText("导入失败详情"))
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+    expect(issues[0]).toContain("乱码.txt：文件不是 UTF-8 编码");
+    expect(issues[0]).toContain("/语料/乱码.txt");
+    expect(issues[1]).toContain("丢失.txt：文件不存在或无法读取");
+    expect(issues[1]).toContain("/语料/丢失.txt");
 
-    const request = mocks.invoke.mock.calls[0][1] as { requestId: string };
-    act(() => {
-      mocks.progressHandler?.({
-        payload: {
-          request_id: request.requestId,
-          type: "progress",
-          progress: { current: 2, total: 5, message: "current request" },
-        },
-      });
-    });
-    expect(screen.getByLabelText("诊断进度 40%")).toBeTruthy();
-
-    act(() => {
-      diagnostic.resolve({
-        request_id: request.requestId,
-        type: "result",
-        result: { reproducibility_manifest: {} },
-      });
-    });
-    await waitFor(() =>
-      expect((runButton as HTMLButtonElement).disabled).toBe(false),
-    );
-    expect(screen.getByText("诊断完成，已生成可复现清单")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /访谈一\.txt/ }));
+    expect(await screen.findByText("真实访谈文本内容")).toBeTruthy();
   });
 
-  it("blocks every other operation while recovery is running", async () => {
-    const crash = deferred<EngineMessage>();
-    mocks.invoke.mockImplementation(
-      (command: string, arguments_: { requestId: string }) => {
-        if (command === "diagnostic_crash") return crash.promise;
-        if (command === "engine_describe") {
-          return Promise.resolve({
-            request_id: arguments_.requestId,
-            type: "result",
-            result: { engine_version: "0.0.0" },
-          });
-        }
-        throw new Error(`Unexpected command: ${command}`);
-      },
-    );
+  it("opens an existing project and restores its saved document list", async () => {
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "e2e_paths")
+        return Promise.reject(new Error("not available"));
+      if (command === "select_project_folder")
+        return Promise.resolve("/研究/基层治理访谈");
+      if (command === "project_open") {
+        return Promise.resolve({
+          type: "result",
+          result: {
+            project: {
+              ...emptyProject,
+              document_count: 1,
+              total_characters: 8,
+              last_imported_at: document.imported_at,
+            },
+            documents: [document],
+          },
+        });
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
     const user = userEvent.setup();
     render(<App />);
 
-    const runButton = screen.getByRole("button", { name: "运行诊断" });
-    const recoveryButton = screen.getByRole("button", { name: "验证异常恢复" });
-    await user.click(recoveryButton);
-    expect((runButton as HTMLButtonElement).disabled).toBe(true);
-    expect((recoveryButton as HTMLButtonElement).disabled).toBe(true);
-    await user.click(runButton);
-    await user.click(recoveryButton);
-    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "打开已有项目" }));
 
-    const crashRequest = mocks.invoke.mock.calls[0][1] as { requestId: string };
-    act(() => {
-      crash.resolve({
-        request_id: crashRequest.requestId,
-        type: "error",
-        error: { code: "engine_exited", message: "expected diagnostic crash" },
-      });
-    });
-    await screen.findByText("恢复验证通过：旧请求未重放，新请求已由新进程响应");
-    expect((runButton as HTMLButtonElement).disabled).toBe(false);
-    expect((recoveryButton as HTMLButtonElement).disabled).toBe(false);
+    expect(
+      await screen.findByRole("heading", { name: "基层治理访谈" }),
+    ).toBeTruthy();
+    expect(screen.getByText("访谈一.txt")).toBeTruthy();
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      "project_open",
+      expect.objectContaining({ projectPath: "/研究/基层治理访谈" }),
+    );
   });
 });

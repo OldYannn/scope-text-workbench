@@ -1,278 +1,513 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 
-type EngineMessage = {
-  request_id: string;
-  type: "progress" | "result" | "error";
-  progress?: { current: number; total: number; message: string };
-  result?: {
-    completed_steps?: number;
-    engine_version?: string;
-    reproducibility_manifest?: Record<string, unknown>;
-  };
+type ProjectSummary = {
+  project_id: string;
+  name: string;
+  created_at: string;
+  software_version: string;
+  format_version: number;
+  project_path: string;
+  document_count: number;
+  total_characters: number;
+  last_imported_at: string | null;
+};
+
+type DocumentSummary = {
+  document_id: string;
+  original_filename: string;
+  source_path: string;
+  imported_at: string;
+  character_count: number;
+  file_size: number;
+  input_hash: string;
+  file_format: "txt";
+  encoding: "utf-8" | "utf-8-sig";
+  import_status: "imported" | "empty";
+};
+
+type DocumentDetail = DocumentSummary & { text: string };
+
+type EngineMessage<T> = {
+  type: "result" | "error";
+  result?: T;
   error?: { code: string; message: string };
 };
 
-type Operation = "idle" | "diagnostic" | "recovery";
+type ProjectResult = {
+  project: ProjectSummary;
+  documents: DocumentSummary[];
+};
 
-const foundations = [
-  {
-    index: "01",
-    title: "Local-first",
-    description: "本地分析路径保持离线，用户语料不会因启动应用而离开设备。",
-  },
-  {
-    index: "02",
-    title: "Reproducible",
-    description: "研究参数、软件版本与输入哈希将进入可追溯的分析记录。",
-  },
-  {
-    index: "03",
-    title: "Method-led",
-    description: "研究方法先于界面功能，算法与桌面呈现保持清晰边界。",
-  },
-];
+type ImportEntry = {
+  source_path?: string;
+  status: "imported" | "empty" | "duplicate" | "failed";
+  document?: DocumentSummary;
+  error?: { code: string; message: string };
+};
+
+type ImportResult = {
+  project: ProjectSummary;
+  entries: ImportEntry[];
+};
+
+type E2ePaths = {
+  parent_path: string;
+  file_paths: string[];
+} | null;
+
+type ImportIssue = {
+  filename: string;
+  message: string;
+  sourcePath: string;
+};
+
+const errorMessages: Record<string, string> = {
+  invalid_project_name: "项目名称为空，或包含 Windows 不支持的字符",
+  project_location_unavailable: "选择的保存位置不可用",
+  project_already_exists: "该位置已经有同名文件夹，请更换项目名称",
+  project_create_failed: "无法在所选位置创建项目",
+  invalid_project: "所选文件夹不是可读取的 SCOPE 项目",
+  unsupported_project_version: "该项目由不兼容的 SCOPE 版本创建",
+  unsupported_format: "当前版本只支持 TXT 文件",
+  unsupported_encoding: "文件不是 UTF-8 编码，请转换为 UTF-8 后重试",
+  file_read_failed: "文件不存在或无法读取",
+  import_failed: "文件无法保存到项目中",
+  document_not_found: "项目中找不到这篇文档",
+};
 
 function requestId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+function formatCount(value: number) {
+  return new Intl.NumberFormat("zh-CN").format(value);
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "尚未导入";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function engineError<T>(message: EngineMessage<T>, fallback: string) {
+  if (!message.error) return fallback;
+  return errorMessages[message.error.code] ?? fallback;
+}
+
+function displayFilename(path: string | undefined) {
+  return path?.split(/[\\/]/).pop() || "未知文件";
+}
+
 function App() {
   const desktopRuntime = isTauri();
-  const activeRequestId = useRef<string | null>(null);
-  const operationRef = useRef<Operation>("idle");
-  const [operation, setOperation] = useState<Operation>("idle");
-  const [progress, setProgress] = useState({ current: 0, total: 5 });
-  const [status, setStatus] = useState(
-    desktopRuntime ? "等待诊断" : "请在 Tauri 桌面窗口中运行",
+  const [projectName, setProjectName] = useState("");
+  const [project, setProject] = useState<ProjectSummary | null>(null);
+  const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const [selectedDocument, setSelectedDocument] =
+    useState<DocumentDetail | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState(
+    desktopRuntime ? "所有数据仅保存在你的电脑上" : "请在 SCOPE 桌面应用中使用",
   );
-  const [manifest, setManifest] = useState<Record<string, unknown> | null>(
-    null,
-  );
-  const [engineVersion, setEngineVersion] = useState<string | null>(null);
+  const [e2ePaths, setE2ePaths] = useState<E2ePaths>(null);
+  const [desktopReady, setDesktopReady] = useState(!desktopRuntime);
+  const [importIssues, setImportIssues] = useState<ImportIssue[]>([]);
 
   useEffect(() => {
     if (!desktopRuntime) return;
-    const unlisten = listen<EngineMessage>("engine-progress", ({ payload }) => {
-      if (payload.request_id !== activeRequestId.current) return;
-      setProgress({
-        current: payload.progress?.current ?? 0,
-        total: payload.progress?.total ?? 1,
-      });
-      setStatus(payload.progress?.message ?? "诊断进行中");
-    });
-    return () => {
-      void unlisten.then((dispose) => dispose());
-    };
+    void invoke<E2ePaths>("e2e_paths")
+      .then((paths) => setE2ePaths(paths))
+      .catch(() => undefined)
+      .finally(() => setDesktopReady(true));
   }, [desktopRuntime]);
 
-  function beginOperation(nextOperation: Exclude<Operation, "idle">) {
-    if (operationRef.current !== "idle") return false;
-    operationRef.current = nextOperation;
-    setOperation(nextOperation);
-    return true;
-  }
-
-  function endOperation() {
-    operationRef.current = "idle";
-    setOperation("idle");
-  }
-
-  async function runDiagnostic() {
-    if (!beginOperation("diagnostic")) return;
-    const id = requestId("diagnostic");
-    activeRequestId.current = id;
-    setManifest(null);
-    setProgress({ current: 0, total: 5 });
-    setStatus("正在启动 Python 分析引擎…");
+  async function createProject() {
+    if (!projectName.trim() || busy || !desktopRuntime) return;
+    setBusy(true);
     try {
-      const message = await invoke<EngineMessage>("diagnostic_run", {
-        requestId: id,
-        steps: 5,
-        delayMs: 1000,
-      });
-      if (message.type === "result") {
-        setManifest(message.result?.reproducibility_manifest ?? null);
-        setStatus("诊断完成，已生成可复现清单");
-      } else {
-        setStatus(
-          message.error?.code === "cancelled"
-            ? "诊断已安全取消"
-            : `诊断失败：${message.error?.message ?? "未知错误"}`,
-        );
-      }
-    } catch (error) {
-      setStatus(`无法运行诊断：${String(error)}`);
-    } finally {
-      activeRequestId.current = null;
-      endOperation();
-    }
-  }
-
-  async function cancelDiagnostic() {
-    const targetRequestId = activeRequestId.current;
-    if (operationRef.current !== "diagnostic" || !targetRequestId) return;
-    setStatus("正在请求安全取消…");
-    try {
-      await invoke<EngineMessage>("diagnostic_cancel", {
-        requestId: requestId("cancel"),
-        targetRequestId,
-      });
-    } catch (error) {
-      setStatus(`取消失败：${String(error)}`);
-    }
-  }
-
-  async function verifyRecovery() {
-    if (!beginOperation("recovery")) return;
-    setStatus("正在模拟分析引擎异常退出…");
-    setManifest(null);
-    try {
-      const crash = await invoke<EngineMessage>("diagnostic_crash", {
-        requestId: requestId("crash"),
-      });
-      if (crash.error?.code !== "engine_exited") {
-        setStatus("异常退出未按预期报告");
+      const parentPath =
+        e2ePaths?.parent_path ??
+        (await invoke<string | null>("select_project_parent"));
+      if (typeof parentPath !== "string") return;
+      const message = await invoke<EngineMessage<ProjectResult>>(
+        "project_create",
+        {
+          requestId: requestId("project-create"),
+          name: projectName.trim(),
+          parentPath,
+        },
+      );
+      if (message.type === "error" || !message.result) {
+        setNotice(`无法创建项目：${engineError(message, "未知错误")}`);
         return;
       }
-      setStatus("已发现异常，正在用新请求重启引擎…");
-      const restarted = await invoke<EngineMessage>("engine_describe", {
-        requestId: requestId("recovery"),
-      });
-      setEngineVersion(restarted.result?.engine_version ?? null);
-      setStatus("恢复验证通过：旧请求未重放，新请求已由新进程响应");
+      setProject(message.result.project);
+      setDocuments(message.result.documents);
+      setSelectedDocument(null);
+      setImportIssues([]);
+      setNotice("项目已创建并保存在本地");
     } catch (error) {
-      setStatus(`恢复验证失败：${String(error)}`);
+      setNotice(`无法创建项目：${String(error)}`);
     } finally {
-      endOperation();
+      setBusy(false);
     }
   }
 
-  const progressPercent = Math.round((progress.current / progress.total) * 100);
+  async function openProject() {
+    if (busy || !desktopRuntime) return;
+    setBusy(true);
+    try {
+      const projectPath = await invoke<string | null>("select_project_folder");
+      if (typeof projectPath !== "string") return;
+      const message = await invoke<EngineMessage<ProjectResult>>(
+        "project_open",
+        {
+          requestId: requestId("project-open"),
+          projectPath,
+        },
+      );
+      if (message.type === "error" || !message.result) {
+        setNotice(`无法打开项目：${engineError(message, "未知错误")}`);
+        return;
+      }
+      setProject(message.result.project);
+      setDocuments(message.result.documents);
+      setSelectedDocument(null);
+      setImportIssues([]);
+      setNotice("项目已打开，已恢复本地语料");
+    } catch (error) {
+      setNotice(`无法打开项目：${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importTxt() {
+    if (!project || busy) return;
+    setBusy(true);
+    setImportIssues([]);
+    try {
+      const selectedPaths =
+        e2ePaths?.file_paths ??
+        (await invoke<string[] | null>("select_txt_files"));
+      if (!selectedPaths) return;
+      const filePaths = Array.isArray(selectedPaths)
+        ? selectedPaths
+        : [selectedPaths];
+      if (!filePaths.length) return;
+      const message = await invoke<EngineMessage<ImportResult>>(
+        "corpus_import_txt",
+        {
+          requestId: requestId("corpus-import"),
+          projectPath: project.project_path,
+          filePaths,
+        },
+      );
+      if (message.type === "error" || !message.result) {
+        setNotice(`无法导入语料：${engineError(message, "未知错误")}`);
+        return;
+      }
+      const importedDocuments = message.result.entries.flatMap((entry) =>
+        entry.document && entry.status !== "duplicate" ? [entry.document] : [],
+      );
+      setDocuments((current) => [
+        ...importedDocuments,
+        ...current.filter(
+          (existing) =>
+            !importedDocuments.some(
+              (imported) => imported.document_id === existing.document_id,
+            ),
+        ),
+      ]);
+      setProject(message.result.project);
+      const failed = message.result.entries.filter(
+        (entry) => entry.status === "failed",
+      );
+      setImportIssues(
+        failed.map((entry) => ({
+          filename: displayFilename(entry.source_path),
+          sourcePath: entry.source_path ?? "未知来源",
+          message: entry.error
+            ? (errorMessages[entry.error.code] ?? "无法读取")
+            : "无法读取",
+        })),
+      );
+      const duplicates = message.result.entries.filter(
+        (entry) => entry.status === "duplicate",
+      ).length;
+      const added = importedDocuments.length;
+      if (failed.length) {
+        setNotice(
+          `已导入 ${added} 个文件，${failed.length} 个失败：${failed[0].error ? (errorMessages[failed[0].error.code] ?? "无法读取") : "无法读取"}`,
+        );
+      } else if (duplicates) {
+        setNotice(`已导入 ${added} 个文件，跳过 ${duplicates} 个重复文件`);
+      } else {
+        setNotice(`已导入 ${added} 个 TXT 文件`);
+      }
+    } catch (error) {
+      setNotice(`无法导入语料：${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function previewDocument(document: DocumentSummary) {
+    if (!project || busy) return;
+    setBusy(true);
+    setNotice(`正在打开“${document.original_filename}”…`);
+    try {
+      const message = await invoke<EngineMessage<{ document: DocumentDetail }>>(
+        "document_get",
+        {
+          requestId: requestId("document-get"),
+          projectPath: project.project_path,
+          documentId: document.document_id,
+        },
+      );
+      if (message.type === "error" || !message.result) {
+        setNotice(`无法查看文本：${engineError(message, "未知错误")}`);
+        return;
+      }
+      setSelectedDocument(message.result.document);
+      setNotice("正在查看保存在项目中的原始文本");
+    } catch (error) {
+      setNotice(`无法查看文本：${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function closeProject() {
+    setProject(null);
+    setDocuments([]);
+    setSelectedDocument(null);
+    setProjectName("");
+    setNotice("项目已关闭，数据仍保存在原项目文件夹中");
+    setImportIssues([]);
+  }
+
+  if (!project) {
+    return (
+      <main className="app-shell welcome-shell" data-testid="scope-home">
+        <header className="topbar">
+          <div className="brand-lockup" aria-label="SCOPE 文镜">
+            <span className="brand-mark">S</span>
+            <span>
+              <strong>SCOPE</strong>
+              <small>文镜</small>
+            </span>
+          </div>
+          <span className="phase-label">Milestone 1 · Pre-alpha</span>
+        </header>
+
+        <section className="welcome-panel">
+          <div className="welcome-copy">
+            <p className="kicker">LOCAL RESEARCH WORKSPACE</p>
+            <h1>
+              从一组文本，
+              <br />
+              开始可复现的研究。
+            </h1>
+            <p className="welcome-description">
+              创建一个本地项目，导入 TXT 语料。SCOPE
+              不需要账号，也不会上传你的研究材料。
+            </p>
+            <div className="privacy-note">
+              <span aria-hidden="true">●</span>
+              本轮功能完全离线
+            </div>
+          </div>
+
+          <div className="create-card">
+            <p className="card-number">01</p>
+            <h2>新建研究项目</h2>
+            <label htmlFor="project-name">项目名称</label>
+            <input
+              id="project-name"
+              value={projectName}
+              onChange={(event) => setProjectName(event.target.value)}
+              placeholder="例如：基层治理访谈"
+              autoFocus
+            />
+            <button
+              className="primary-button"
+              disabled={
+                !desktopRuntime || !desktopReady || !projectName.trim() || busy
+              }
+              onClick={() => void createProject()}
+            >
+              {busy ? "正在创建…" : "创建项目"}
+            </button>
+            <button
+              className="text-button"
+              disabled={!desktopRuntime || !desktopReady || busy}
+              onClick={() => void openProject()}
+            >
+              打开已有项目
+            </button>
+          </div>
+        </section>
+
+        <p className="notice" aria-live="polite">
+          {notice}
+        </p>
+      </main>
+    );
+  }
 
   return (
-    <main className="shell">
-      <header className="masthead">
+    <main className="app-shell workspace-shell" data-testid="scope-project">
+      <header className="topbar workspace-topbar">
         <div className="brand-lockup" aria-label="SCOPE 文镜">
-          <span className="brand">SCOPE</span>
-          <span className="brand-cn">文镜</span>
+          <span className="brand-mark">S</span>
+          <span>
+            <strong>SCOPE</strong>
+            <small>文镜</small>
+          </span>
         </div>
-        <div className="milestone">
-          <span className="status-dot" aria-hidden="true" />
-          Milestone 0 · Pre-alpha
+        <div className="project-actions">
+          <span className="saved-state">
+            <i aria-hidden="true" />
+            本地保存
+          </span>
+          <button className="text-button" onClick={closeProject}>
+            关闭项目
+          </button>
         </div>
       </header>
 
-      <section
-        className="hero"
-        aria-labelledby="hero-title"
-        data-testid="scope-hero"
-      >
-        <p className="eyebrow">
-          Humanities &amp; Social Sciences Text Workbench
-        </p>
-        <h1 id="hero-title">
-          让文本研究过程
-          <span>清晰、可查、可复现。</span>
-        </h1>
-        <p className="intro">
-          SCOPE 文镜正在建立最小可信技术底座。本阶段只验证桌面壳、Python
-          分析引擎边界与跨平台交付，不产生科研分析结论。
-        </p>
-      </section>
-
-      <section className="diagnostic" aria-labelledby="diagnostic-title">
-        <div className="diagnostic-heading">
-          <p className="eyebrow">Diagnostic tracer bullet / 基础链路诊断</p>
-          <h2 id="diagnostic-title">桌面与分析引擎之间，是否真的可靠？</h2>
-          <p>
-            这不是研究功能。它只验证进度、取消、异常恢复，以及一次运行所需的可复现记录。
+      <section className="project-heading">
+        <div>
+          <p className="kicker">CURRENT PROJECT / 当前项目</p>
+          <h1>{project.name}</h1>
+          <p className="project-location" title={project.project_path}>
+            {project.project_path}
           </p>
         </div>
+        <button
+          className="primary-button import-button"
+          aria-label="导入 TXT"
+          disabled={busy}
+          onClick={() => void importTxt()}
+        >
+          ＋ 导入 TXT
+        </button>
+      </section>
 
-        <div className="diagnostic-instrument">
-          <div
-            className="meter"
-            aria-label={`诊断进度 ${progressPercent}%`}
-            data-testid="diagnostic-progress"
-          >
-            <span className="meter-value">{progressPercent}</span>
-            <span className="meter-unit">%</span>
-            <div className="meter-track" aria-hidden="true">
-              <span style={{ width: `${progressPercent}%` }} />
+      <section className="stats-grid" aria-label="项目概览">
+        <article>
+          <span>语料数量</span>
+          <strong>{project.document_count}</strong>
+          <small>篇文档</small>
+        </article>
+        <article>
+          <span>总字符数</span>
+          <strong>{formatCount(project.total_characters)}</strong>
+          <small>字符</small>
+        </article>
+        <article>
+          <span>最近导入</span>
+          <strong className="date-stat">
+            {formatDate(project.last_imported_at)}
+          </strong>
+          <small>本地时间</small>
+        </article>
+      </section>
+
+      <p className="notice workspace-notice" aria-live="polite">
+        {notice}
+      </p>
+      {importIssues.length > 0 && (
+        <ul className="import-errors" aria-label="导入失败详情">
+          {importIssues.map((issue, index) => (
+            <li key={`${issue.sourcePath}-${index}`}>
+              <strong>{issue.filename}</strong>：{issue.message}
+              <small title={issue.sourcePath}>{issue.sourcePath}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <section className="corpus-workspace">
+        <div className="document-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="kicker">CORPUS / 语料</p>
+              <h2>语料列表</h2>
             </div>
+            <span>{project.document_count} 篇文档</span>
           </div>
-          <p
-            className="diagnostic-status"
-            aria-live="polite"
-            data-testid="diagnostic-status"
-          >
-            <span aria-hidden="true">STATUS</span>
-            {status}
-          </p>
-          <div className="diagnostic-actions">
-            <button
-              className="primary-action"
-              data-testid="diagnostic-run"
-              disabled={!desktopRuntime || operation !== "idle"}
-              onClick={() => void runDiagnostic()}
-            >
-              运行诊断
-            </button>
-            <button
-              data-testid="diagnostic-cancel"
-              disabled={operation !== "diagnostic"}
-              onClick={() => void cancelDiagnostic()}
-            >
-              安全取消
-            </button>
-            <button
-              disabled={!desktopRuntime || operation !== "idle"}
-              onClick={() => void verifyRecovery()}
-            >
-              验证异常恢复
-            </button>
-          </div>
-          <div className="manifest-panel">
-            <span>Reproducibility manifest / 可复现清单</span>
-            <pre data-testid="diagnostic-manifest">
-              {manifest
-                ? JSON.stringify(manifest, null, 2)
-                : "完成一次诊断后，固定参数、软件版本和网络使用状态将在这里显示。"}
-            </pre>
-          </div>
-          {engineVersion && (
-            <p className="engine-version">恢复后的引擎版本 {engineVersion}</p>
+          {documents.length ? (
+            <ul className="document-list">
+              {documents.map((document) => (
+                <li key={document.document_id}>
+                  <button
+                    className={
+                      selectedDocument?.document_id === document.document_id
+                        ? "active"
+                        : ""
+                    }
+                    onClick={() => void previewDocument(document)}
+                    disabled={busy}
+                  >
+                    <span className="file-icon" aria-hidden="true">
+                      TXT
+                    </span>
+                    <span className="file-info">
+                      <strong>{document.original_filename}</strong>
+                      <small>
+                        {formatCount(document.character_count)} 字符 ·{" "}
+                        {document.encoding === "utf-8-sig"
+                          ? "UTF-8 BOM"
+                          : "UTF-8"}
+                      </small>
+                    </span>
+                    <span className={`import-state ${document.import_status}`}>
+                      {document.import_status === "empty" ? "空文件" : "已导入"}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="empty-state">
+              <span aria-hidden="true">文</span>
+              <h3>还没有导入语料</h3>
+              <p>点击“导入 TXT”，可以一次选择一个或多个文本文件。</p>
+            </div>
           )}
         </div>
-      </section>
 
-      <section className="foundation-grid" aria-label="Project foundations">
-        {foundations.map((foundation) => (
-          <article className="foundation" key={foundation.index}>
-            <span className="foundation-index">{foundation.index}</span>
-            <h2>{foundation.title}</h2>
-            <p>{foundation.description}</p>
-          </article>
-        ))}
+        <article className="preview-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="kicker">PREVIEW / 文本预览</p>
+              <h2>{selectedDocument?.original_filename ?? "选择一篇语料"}</h2>
+            </div>
+            {selectedDocument && (
+              <span>{formatCount(selectedDocument.character_count)} 字符</span>
+            )}
+          </div>
+          {selectedDocument ? (
+            <pre className="text-preview">
+              {selectedDocument.text || "（空文件）"}
+            </pre>
+          ) : (
+            <div className="preview-placeholder">
+              <span aria-hidden="true">Aa</span>
+              <p>从左侧语料列表选择一篇文档，在这里查看保存的原始文本。</p>
+            </div>
+          )}
+        </article>
       </section>
-
-      <footer className="system-strip" aria-label="Development system status">
-        <div>
-          <span className="system-label">Desktop</span>
-          <strong>Tauri 2 · React · TypeScript</strong>
-        </div>
-        <div>
-          <span className="system-label">Engine contract</span>
-          <strong>Python · NDJSON 0.1</strong>
-        </div>
-        <div>
-          <span className="system-label">Network</span>
-          <strong>Not required</strong>
-        </div>
-      </footer>
     </main>
   );
 }

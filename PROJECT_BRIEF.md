@@ -1,7 +1,7 @@
 # 项目总纲 — SCOPE 文镜
 
 > 项目状态：Pre-alpha / 项目立项阶段
-> 最后更新：2026-08-17
+> 最后更新：2026-08-21
 > 项目正式名称（暂定）：SCOPE
 > 中文品牌名：文镜
 > 中文对外名称：SCOPE 文镜
@@ -889,7 +889,7 @@ Milestone 0 和首个 Public Alpha 暂不增加 Windows ARM64 或 Linux，避免
 - 面向项目负责人、研究者和中文用户的人类文档以中文为主，首次出现的关键英文技术术语应提供简短中文解释；
 - 文档文件名无需强行中文化，但正文必须让非计算机专业的项目负责人能够直接理解；
 - 每项重要架构决策应提供“项目负责人说明”，解释设计原因、解决的问题、主要风险和待决策事项；
-- Private / Pre-alpha 阶段的 `README.md` 以中文为主，进入 Public Alpha 前再规划英文主版 `README.md` 与中文版 `README.zh-CN.md`。
+- Public / Pre-alpha 阶段的 `README.md` 以中文为主，进入 Public Alpha 前再规划英文主版 `README.md` 与中文版 `README.zh-CN.md`。
 
 语言规范用于降低项目维护和研究沟通门槛，不要求对源代码和技术标识进行无意义翻译。
 
@@ -897,18 +897,15 @@ Milestone 0 和首个 Public Alpha 暂不增加 Windows ARM64 或 Linux，避免
 
 ## 18. 当前阶段与下一步
 
-架构比较、推荐方案、目录结构、Milestone 0 执行计划和主要风险分析已经完成。当前继续执行 Milestone 0，不重新进行架构选型，也不提前进入 Milestone 1 的语料管理和文本清洗开发。
+架构比较、推荐方案、目录结构、Milestone 0 执行计划和主要风险分析已经完成。仓库已公开并采用 Apache License 2.0，当前从 Milestone 0 Gate 转入 Milestone 1 产品功能开发，不重新进行架构选型。
 
 下一步依次为：
 
-1. GitHub Repository Name 已确认；继续由项目负责人确认第 17 节中的 Bundle ID、Python / JavaScript Package Name 等发布标识；
-2. Architecture Decision Record、模块职责、Python sidecar 初始协议和 Electron 回退条件已经建立；
-3. 最小仓库骨架、测试框架和 CI 已经建立；
-4. 非科研性质的 diagnostic tracer bullet 已完成，已验证进度、取消、异常中断和可复现清单；
-5. Python sidecar 已在 Windows x64、macOS arm64、macOS x64 上完成原生冻结和 CI 打包，Release 不依赖用户系统 Python；
-6. Windows x64 在既有自动化测试与原生构建之上增加真实 Tauri GUI E2E；安装、SmartScreen / Defender、DPI、字体和总体体验仍待独立的真实 Windows UAT；
-7. macOS arm64 已完成安装与首次启动的最小 Computer Use smoke test，macOS x64 继续通过原生 CI 构建验证；
-8. 完成 Milestone 0 所需的开源项目基础文档和质量检查。
+1. Milestone 1A 建立项目创建、TXT 导入、语料列表、文本预览和重新打开后的本地持久化闭环；
+2. 后续 Milestone 1 切片再逐步加入 CSV、XLSX、DOCX 和基础文本清洗，不与 1A 混做；
+3. 继续由项目负责人确认第 17 节中的 Bundle ID、Python / JavaScript Package Name 等发布标识；
+4. Windows 安装、SmartScreen / Defender、DPI、字体和总体体验继续通过独立真实 Windows UAT 验证；
+5. 正式品牌图标和发布级签名/公证保留为发布准备事项，不阻塞 Milestone 1 功能开发。
 
 以下事项最终决策权属于项目负责人：
 

@@ -12,10 +12,10 @@
   "app": {
     "windows": [
       {
-        "title": "SCOPE 文镜 — Milestone 0",
+        "title": "SCOPE 文镜 — Milestone 1",
         "width": 1080,
         "height": 720,
-        "minWidth": 860,
+        "minWidth": 760,
         "minHeight": 620
       }
     ],

@@ -2,7 +2,7 @@
 
 ## 状态与范围
 
-本文定义桌面壳与 Python 分析引擎之间的 `0.1` 开发协议。目前只覆盖 diagnostic（技术诊断）通信，不定义语料、编码或研究分析行为。
+本文定义桌面壳与 Python 分析引擎之间的 `0.1` 开发协议。目前覆盖 diagnostic（技术诊断）、项目创建/打开、TXT 导入和原始文本读取，不定义文本清洗或研究分析行为。
 
 传输格式为 UTF-8 NDJSON（Newline-Delimited JSON，每行一个完整 JSON 对象）。桌面壳把请求写入分析引擎的标准输入；分析引擎把协议消息写入标准输出，把供开发者阅读的诊断信息写入标准错误。
 
@@ -93,6 +93,24 @@
 
 该方法只用于验证 Rust 对分析引擎异常退出的处理。它接收空 `params`，并让 Python 进程以约定的非零状态退出，因此不会产生正常终结消息。Rust 必须把等待请求标记为 `engine_exited`，下一次新请求再启动新进程；不得自动重放崩溃前的请求。
 
+### `project.create`
+
+`params` 包含非空 `name` 和 `parent_path`。引擎在指定位置创建项目目录，返回项目概览与空文档列表。项目名称遵循 Windows 和 macOS 都可使用的文件名限制；目标目录已经存在时明确失败。
+
+### `project.open`
+
+`params` 包含 `project_path`。引擎验证项目目录版本和数据库版本，返回项目概览与已保存的文档列表。未知版本不得被静默升级。
+
+### `corpus.import_txt`
+
+`params` 包含 `project_path` 和非空 `file_paths` 数组。本协议版本只支持 `.txt`，编码只接受严格 UTF-8 与 UTF-8 BOM。每个文件独立返回 `imported`、`empty`、`duplicate` 或 `failed`；单个文件失败不阻止其他文件导入。
+
+成功文档元数据包含 `document_id`、原始文件名、来源路径、导入时间、字符数、文件大小、输入哈希、格式、编码和导入状态。每次新增文档同时返回并保存最小 `reproducibility_manifest`，记录软件版本、项目与文档标识、文件哈希、导入时间、格式、编码、大小和 `network_used: false`。
+
+### `document.get`
+
+`params` 包含 `project_path` 和 `document_id`。返回已保存文档元数据及严格解码后的原始文本，用于本地预览。
+
 ## 错误代码
 
 | 代码 | 含义 |
@@ -105,6 +123,16 @@
 | `request_id_in_use` | 相同 `request_id` 的任务仍在运行 |
 | `cancelled` | 目标任务已按请求取消 |
 | `internal_error` | 分析引擎出现意外错误；详细信息不得暴露 Secret |
+| `invalid_project_name` | 项目名称为空或不满足跨平台文件名限制 |
+| `project_location_unavailable` | 项目保存位置不可用 |
+| `project_already_exists` | 同名项目目录已经存在 |
+| `invalid_project` | 项目元数据或数据库缺失、损坏或不可读 |
+| `unsupported_project_version` | 项目目录或数据库版本不受支持 |
+| `unsupported_format` | 导入文件不是当前支持的 TXT |
+| `unsupported_encoding` | TXT 不是严格 UTF-8 或 UTF-8 BOM |
+| `file_read_failed` | 文件不存在或无法读取 |
+| `import_failed` | 文件已读取，但无法安全保存到项目中 |
+| `document_not_found` | 项目中不存在指定文档 |
 
 如果无法恢复有效 `request_id`，分析引擎使用 `null`。损坏输入不能导致长期运行的分析引擎崩溃。
 

@@ -22,7 +22,21 @@ SCOPE 当前处于 Pre-alpha 阶段。在关键技术风险得到验证前，路
 
 ## Milestone 1 — 语料管理与文本清洗
 
-Milestone 0 验收后开始。具体范围以 `PROJECT_BRIEF.md` 为准。
+Milestone 0 Gate 通过后开始。具体范围以 `PROJECT_BRIEF.md` 为准。
+
+### Milestone 1A — 项目创建 + TXT 导入 + 语料预览
+
+- [x] 创建和打开可整体迁移的本地项目目录
+- [x] 保存项目标识、名称、创建时间、软件版本和格式版本
+- [x] 导入单个或多个 UTF-8 / UTF-8 BOM TXT
+- [x] 保存原始字节副本、预览文本、来源信息和稳定输入哈希
+- [x] 显示项目概览、语料列表、导入状态和文本预览
+- [x] 关闭并重新打开项目后恢复语料
+- [x] 保存最小真实导入审计记录并明确 `network_used: false`
+- [x] 增加固定 fixture、协议测试、React 测试和 Windows GUI E2E 主流程
+- [ ] 完成独立 Windows 11 x64 项目负责人 UAT
+
+CSV、XLSX、DOCX、文本清洗和其他分析功能留给后续切片。
 
 ## 后续里程碑
 
