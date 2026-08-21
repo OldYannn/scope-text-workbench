@@ -22,7 +22,7 @@ async function waitForProjectWorkspace() {
 async function waitForImportedDocument() {
   await browser.waitUntil(
     async () => {
-      const document = $("button*=中文语料.txt");
+      const document = $("button*=正常中文.txt");
       if (await document.isExisting()) return true;
 
       const notice = $(".notice");
@@ -50,9 +50,9 @@ describe("SCOPE Milestone 1A main flow", () => {
     await waitForProjectWorkspace();
     await $("[aria-label='导入 TXT']").click();
     await waitForImportedDocument();
-    await $("button*=中文语料.txt").click();
+    await $("button*=正常中文.txt").click();
     await expect($(".text-preview")).toHaveText(
-      "这是一份用于验证项目主流程的中文语料。",
+      "政策执行需要同时关注制度设计与基层实践。",
     );
   });
 });
