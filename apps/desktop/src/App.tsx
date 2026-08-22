@@ -236,6 +236,8 @@ function App() {
   >("tf");
   const [topN, setTopN] = useState("100");
   const [ignoredCandidates, setIgnoredCandidates] = useState<string[]>([]);
+  const [stopwordLoadError, setStopwordLoadError] = useState(false);
+  const [workspaceTab, setWorkspaceTab] = useState<"text" | "cleaning" | "tokenize" | "frequency">("text");
 
   useEffect(() => {
     if (!desktopRuntime) return;
@@ -262,7 +264,11 @@ function App() {
       ),
     ])
       .then(([profiles, active]) => {
-        if (profiles.result) setStopwordOptions(profiles.result.profiles);
+        if (profiles.type === "error" || active.type === "error" || !profiles.result || !active.result) {
+          throw new Error("停用词资源加载失败");
+        }
+        setStopwordLoadError(false);
+        setStopwordOptions(profiles.result.profiles);
         if (active.result) {
           setStopwordProfile(active.result.profile);
           setStopwordBase(active.result.profile.base_profile_id);
@@ -270,8 +276,15 @@ function App() {
           setStopwordExclusions(active.result.profile.custom_exclusions);
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        setStopwordLoadError(true);
+        setNotice("停用词资源加载失败，词频分析暂不可用。请点击“重试”。");
+      });
   }, [project, desktopRuntime]);
+
+  function retryStopwordLoading() {
+    if (project) setProject({ ...project });
+  }
 
   async function createProject() {
     if (!projectName.trim() || busy || !desktopRuntime) return;
@@ -309,10 +322,17 @@ function App() {
     if (busy || !desktopRuntime) return;
     setBusy(true);
     setNotice(
-      "请选择 SCOPE 项目文件夹，例如“基层治理访谈”；有效项目文件夹中包含 project.json。请不要进入 corpus 等内部子目录。\n",
+      "请选择 SCOPE 项目的 project.json 文件。",
     );
     try {
-      const projectPath = await invoke<string | null>("select_project_folder");
+      let projectPath: string | null;
+      try {
+        projectPath = await invoke<string | null>("select_project_json");
+      } catch (error) {
+        // Keeps older development harnesses usable; production uses the JSON picker above.
+        if (!String(error).includes("Unexpected command")) throw error;
+        projectPath = await invoke<string | null>("select_project_folder");
+      }
       if (typeof projectPath !== "string") return;
       const message = await invoke<EngineMessage<ProjectResult>>(
         "project_open",
@@ -855,6 +875,11 @@ function App() {
       <p className="notice workspace-notice" aria-live="polite">
         {notice}
       </p>
+      <nav className="workspace-tabs" aria-label="研究工作区">
+        {([["text", "文本"], ["cleaning", "清洗"], ["tokenize", "分词"], ["frequency", "词频"]] as const).map(([key, label]) => (
+          <button key={key} className={workspaceTab === key ? "active" : ""} onClick={() => setWorkspaceTab(key)}>{label}</button>
+        ))}
+      </nav>
       {importIssues.length > 0 && (
         <ul className="import-errors" aria-label="导入失败详情">
           {importIssues.map((issue, index) => (
@@ -866,7 +891,7 @@ function App() {
         </ul>
       )}
 
-      <section className="corpus-workspace">
+      <section className={`corpus-workspace workspace-tab-${workspaceTab}`}>
         <div className="document-panel">
           <div className="panel-heading">
             <div>
@@ -1078,7 +1103,7 @@ function App() {
           )}
         </article>
       </section>
-      <section className="frequency-panel" aria-label="词频分析">
+      <section className={`frequency-panel workspace-tab-${workspaceTab}`} aria-label="词频分析">
         <div className="panel-heading">
           <div>
             <p className="kicker">FREQUENCY / 词频</p>
@@ -1087,18 +1112,24 @@ function App() {
           <button
             className="primary-button"
             onClick={() => void executeFrequency()}
-            disabled={busy}
+            disabled={busy || stopwordLoadError}
           >
             计算 TF / DF / RF10K
           </button>
         </div>
+        {stopwordLoadError && (
+          <div className="feature-error" role="alert">
+            <span>停用词资源加载失败，词频分析暂不可用。</span>
+            <button className="text-button" onClick={retryStopwordLoading}>重试</button>
+          </div>
+        )}
         <div className="stopword-controls">
           <label>
             停用词方案
             <select
               value={stopwordBase}
               onChange={(event) => void resolveStopwords(event.target.value)}
-              disabled={busy}
+              disabled={busy || stopwordLoadError}
             >
               {stopwordOptions.map((option) => (
                 <option value={option.profile_id} key={option.profile_id}>
@@ -1124,7 +1155,7 @@ function App() {
           <button
             className="text-button"
             onClick={() => void importStopwords()}
-            disabled={busy}
+            disabled={busy || stopwordLoadError}
           >
             导入 UTF-8 TXT
           </button>
@@ -1138,13 +1169,13 @@ function App() {
             placeholder="手动增加词语"
             aria-label="手动增加停用词"
           />
-          <button className="text-button" onClick={addStopword} disabled={busy}>
+          <button className="text-button" onClick={addStopword} disabled={busy || stopwordLoadError}>
             增加
           </button>
           <button
             className="text-button"
             onClick={() => void resolveStopwords("scope-cn-general-v1", [], [])}
-            disabled={busy}
+            disabled={busy || stopwordLoadError}
           >
             恢复默认
           </button>
@@ -1248,18 +1279,21 @@ function App() {
               <button
                 className="text-button"
                 onClick={() => setShowOptimization((value) => !value)}
+                disabled={stopwordLoadError}
               >
                 停用词优化助手
               </button>
               <button
                 className="text-button"
                 onClick={() => void exportFrequency("csv")}
+                disabled={!frequency || stopwordLoadError}
               >
                 导出 CSV
               </button>
               <button
                 className="text-button"
                 onClick={() => void exportFrequency("xlsx")}
+                disabled={!frequency || stopwordLoadError}
               >
                 导出 XLSX
               </button>
@@ -1347,9 +1381,12 @@ function App() {
             </div>
           </>
         ) : (
-          <p className="cleaning-note">
-            尚未执行词频分析。完成分词后可计算第一版可复现词频结果。
-          </p>
+          <div className="frequency-empty-state">
+            <p className="cleaning-note">尚未执行词频分析。完成分词后可计算第一版可复现词频结果。</p>
+            <button className="text-button" disabled>导出 CSV</button>
+            <button className="text-button" disabled>导出 XLSX</button>
+            <small>请先完成词频分析。</small>
+          </div>
         )}
       </section>
     </main>

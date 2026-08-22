@@ -93,6 +93,10 @@ Milestone 1B 已完成，分词只允许使用明确保存的 `analysis_text`；
 - [x] GUI CSV/XLSX 文件保存导出
 - [ ] Windows/macOS 中文路径 UAT 与 CI 构建验证
 
+### Milestone 2B.2 — Windows UAT Hardening + Workspace UX Architecture
+
+当前 Gate：**FAIL / NOT READY**（Windows Project Owner UAT #1）。首轮真实 UAT 已确认安装启动、无黑窗、TXT 导入、清洗、jieba 分词和关闭重开后的分词恢复通过。阻塞问题包括窄窗口布局、无法在文件选择器核验 `project.json`、工作区纵向堆叠，以及冻结 sidecar 中停用词 profile、词频、优化助手和导出能力不可见或不可用。首要修复是把 `resources/stopwords` 作为 PyInstaller data 明确打入 onefile，并让 frozen verification 实际调用停用词和词频协议；随后完成桌面工作区标签化和明确的初始化错误状态。修复完成后需重新生成 Windows x64 production artifact 并进入 UAT #2，不进入 TF-IDF。
+
 后续将按照 `PROJECT_BRIEF.md` 依次推进中文分词与词频分析、共现分析、研究审计链、可选模型 Provider、实验性 AI 编码和首个 Public Alpha。
 
 宣布任何 Milestone 完成前，都必须通过 `AGENTS.md` 规定的构建、测试、格式、文档、隐私和可复现性检查。

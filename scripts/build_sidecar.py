@@ -63,6 +63,8 @@ def build(expected_target: str | None = None) -> Path:
             str(build_directory / "spec"),
             "--paths",
             str(REPOSITORY_ROOT / "engine/src"),
+            "--add-data",
+            f"{REPOSITORY_ROOT / 'engine/src/scope_engine/resources/stopwords'}{os.pathsep}scope_engine/resources/stopwords",
             str(REPOSITORY_ROOT / "engine/packaging/sidecar_entry.py"),
         ],
         check=True,

@@ -62,6 +62,8 @@
 - `protocol_version`：分析引擎实现的协议版本；
 - `capabilities`：当前引擎支持的方法名称，按字母排序。
 
+当前公开能力还包括 `stopwords.profiles`、`stopwords.get`、`stopwords.resolve`、`stopwords.import`、`frequency.analyze`、`frequency.latest` 和 `frequency.export`。冻结验证会直接调用这些能力，确保离线安装包包含停用词资源。
+
 该方法不会修改项目，也不需要网络。
 
 ### `diagnostic.run`

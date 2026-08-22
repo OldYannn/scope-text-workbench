@@ -28,21 +28,28 @@ from scope_engine.project_store import (
 )
 
 PROTOCOL_VERSION = "0.1"
-CAPABILITIES = [
+CAPABILITIES = sorted([
     "corpus.import_txt",
     "diagnostic.crash",
     "diagnostic.run",
     "document.get",
+    "frequency.analyze",
+    "frequency.export",
+    "frequency.latest",
+    "project.create",
+    "project.open",
+    "request.cancel",
+    "stopwords.get",
+    "stopwords.import",
+    "stopwords.profiles",
+    "stopwords.resolve",
     "text.clean.preview",
     "text.clean.execute",
     "text.tokenize.preview",
     "text.tokenize.execute",
     "tokenization.dictionary.import",
-    "project.create",
-    "project.open",
-    "request.cancel",
     "system.describe",
-]
+])
 OUTPUT_LOCK = threading.Lock()
 
 

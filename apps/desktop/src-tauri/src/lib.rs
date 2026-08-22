@@ -573,6 +573,33 @@ async fn select_project_folder(
 }
 
 #[tauri::command]
+async fn select_project_json(
+    app: tauri::AppHandle,
+    approved: State<'_, ApprovedPaths>,
+) -> Result<Option<String>, String> {
+    app.dialog()
+        .file()
+        .set_title("选择 SCOPE 项目的 project.json")
+        .add_filter("SCOPE 项目配置", &["json"])
+        .blocking_pick_file()
+        .map(|selected| {
+            selected
+                .into_path()
+                .map_err(|_| "The selected file is unavailable".to_string())
+                .and_then(|path| {
+                    if path.file_name().and_then(|name| name.to_str()) != Some("project.json") {
+                        return Err("请选择 SCOPE 项目根目录中的 project.json。".to_string());
+                    }
+                    approved.approve_project(
+                        path.parent()
+                            .ok_or_else(|| "无法确定项目根目录".to_string())?,
+                    )
+                })
+        })
+        .transpose()
+}
+
+#[tauri::command]
 async fn select_txt_files(
     app: tauri::AppHandle,
     approved: State<'_, ApprovedPaths>,
@@ -706,6 +733,7 @@ pub fn run() {
         select_frequency_export,
         select_project_parent,
         select_project_folder,
+        select_project_json,
         select_txt_files,
         select_user_dictionary,
         select_stopword_file,
@@ -736,6 +764,7 @@ pub fn run() {
         select_frequency_export,
         select_project_parent,
         select_project_folder,
+        select_project_json,
         select_txt_files,
         select_user_dictionary,
         select_stopword_file
