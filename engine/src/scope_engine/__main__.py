@@ -12,10 +12,17 @@ from scope_engine.project_store import (
     clean_execute,
     clean_preview,
     create_project,
+    frequency_execute,
+    frequency_export,
+    frequency_latest,
     get_document,
+    get_project_stopwords,
+    get_stopword_profiles,
+    import_project_stopwords,
     import_txt,
     import_user_dictionary,
     open_project,
+    resolve_project_stopwords,
     tokenize_execute,
     tokenize_preview,
 )
@@ -292,6 +299,43 @@ def handle_request(request: Any) -> dict[str, Any] | None:
             return result_response(
                 request_id,
                 tokenizer(params["project_path"], params["document_id"], params.get("config", {})),
+            )
+        if request["method"] == "stopwords.profiles":
+            return result_response(request_id, {"profiles": get_stopword_profiles()})
+        if request["method"] == "stopwords.get":
+            return result_response(
+                request_id, {"profile": get_project_stopwords(request["params"]["project_path"])}
+            )
+        if request["method"] == "stopwords.resolve":
+            params = request["params"]
+            return result_response(
+                request_id,
+                {
+                    "profile": resolve_project_stopwords(
+                        params["project_path"],
+                        base_profile_id=params.get("base_profile_id", "scope-cn-general-v1"),
+                        additions=params.get("custom_additions", []),
+                        exclusions=params.get("custom_exclusions", []),
+                        extension_words=params.get("extension_words", []),
+                    )
+                },
+            )
+        if request["method"] == "stopwords.import":
+            params = request["params"]
+            return result_response(
+                request_id, import_project_stopwords(params["project_path"], params["file_path"])
+            )
+        if request["method"] == "frequency.analyze":
+            return result_response(request_id, frequency_execute(request["params"]["project_path"]))
+        if request["method"] == "frequency.latest":
+            return result_response(
+                request_id, {"analysis": frequency_latest(request["params"]["project_path"])}
+            )
+        if request["method"] == "frequency.export":
+            params = request["params"]
+            return result_response(
+                request_id,
+                frequency_export(params["project_path"], params["destination"], params["format"]),
             )
     except ProjectError as error:
         return error_response(error.code, error.message, request_id=request_id)

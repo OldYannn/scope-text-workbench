@@ -73,6 +73,16 @@ Milestone 1B 已完成，分词只允许使用明确保存的 `analysis_text`；
 
 ## 后续里程碑
 
+### Milestone 2B — Stopword Profiles + Frequency Analysis
+
+- [x] 版本化停用词 profile、exact-token filter、custom additions/exclusions 和 resolved snapshot
+- [x] TF / DF / RF10K、document coverage、未分词文档报告与 Frequency Manifest
+- [x] CSV（UTF-8 BOM）与 XLSX 双 sheet 导出基础能力
+- [x] 透明的停用词优化候选逻辑（仅供人工判断）
+- [ ] 完成真实 GUI 导出按钮与项目负责人 UAT
+
+文本类型扩展 profile 仅完成数据模型，待方法审查后再发布词项。
+
 后续将按照 `PROJECT_BRIEF.md` 依次推进中文分词与词频分析、共现分析、研究审计链、可选模型 Provider、实验性 AI 编码和首个 Public Alpha。
 
 宣布任何 Milestone 完成前，都必须通过 `AGENTS.md` 规定的构建、测试、格式、文档、隐私和可复现性检查。

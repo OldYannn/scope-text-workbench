@@ -82,6 +82,8 @@ MVP 范围严格按照 `PROJECT_BRIEF.md` 中的 Milestone 推进。
 
 ## 开发规则
 
+长期开发节奏统一遵循 [`docs/development/workflow.md`](docs/development/workflow.md)。
+
 - GUI 测试、Computer Use 和项目负责人人工验收遵循 `docs/testing/gui-testing.md`；默认自动化验证优先，Computer Use 只作最小必要补充；
 - 优先进行小范围、可审查的修改；
 - 保持模块边界清晰；

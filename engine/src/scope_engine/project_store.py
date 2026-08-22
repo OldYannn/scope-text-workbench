@@ -15,7 +15,7 @@ from typing import Any
 from scope_engine import __version__
 
 PROJECT_FORMAT_VERSION = 1
-DATABASE_SCHEMA_VERSION = 3
+DATABASE_SCHEMA_VERSION = 4
 PROJECT_METADATA_FILENAME = "project.json"
 DATABASE_FILENAME = "scope.db"
 INVALID_WINDOWS_FILENAME_CHARACTERS = frozenset('<>:"/\\|?*')
@@ -123,6 +123,23 @@ def _initialize_database(project_path: Path) -> None:
                 file_hash TEXT NOT NULL UNIQUE,
                 file_size INTEGER NOT NULL CHECK (file_size >= 0)
             );
+
+            CREATE TABLE stopword_profiles (
+                profile_id TEXT PRIMARY KEY,
+                base_profile_id TEXT NOT NULL,
+                profile_json TEXT NOT NULL,
+                resolved_hash TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE frequency_analyses (
+                analysis_id TEXT PRIMARY KEY,
+                manifest_json TEXT NOT NULL,
+                result_json TEXT NOT NULL,
+                result_hash TEXT NOT NULL,
+                valid INTEGER NOT NULL DEFAULT 1 CHECK (valid IN (0, 1)),
+                created_at TEXT NOT NULL
+            );
             """
         )
         connection.execute(f"PRAGMA user_version = {DATABASE_SCHEMA_VERSION}")
@@ -175,6 +192,27 @@ def _load_metadata(project_path: Path) -> dict[str, Any]:
                         file_hash TEXT NOT NULL UNIQUE,
                         file_size INTEGER NOT NULL CHECK (file_size >= 0)
                     )
+                """)
+                connection.execute("PRAGMA user_version = 3")
+                connection.commit()
+                schema_version = 3
+            if schema_version == 3:
+                connection.executescript("""
+                    CREATE TABLE IF NOT EXISTS stopword_profiles (
+                        profile_id TEXT PRIMARY KEY,
+                        base_profile_id TEXT NOT NULL,
+                        profile_json TEXT NOT NULL,
+                        resolved_hash TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    );
+                    CREATE TABLE IF NOT EXISTS frequency_analyses (
+                        analysis_id TEXT PRIMARY KEY,
+                        manifest_json TEXT NOT NULL,
+                        result_json TEXT NOT NULL,
+                        result_hash TEXT NOT NULL,
+                        valid INTEGER NOT NULL DEFAULT 1 CHECK (valid IN (0, 1)),
+                        created_at TEXT NOT NULL
+                    );
                 """)
                 connection.execute(f"PRAGMA user_version = {DATABASE_SCHEMA_VERSION}")
                 connection.commit()
@@ -695,7 +733,7 @@ def _load_dictionary(project_path: Path, connection: sqlite3.Connection, diction
 def _tokenize(
     text: str, config: dict[str, Any], dictionary_path: Path | None
 ) -> list[dict[str, Any]]:
-    import jieba
+    import jieba  # type: ignore[import-untyped]
 
     tokenizer = jieba.Tokenizer()
     if dictionary_path is not None:
@@ -777,3 +815,186 @@ def tokenize_execute(
         )
         connection.commit()
     return {**preview, "executed_at": executed_at}
+
+
+def get_stopword_profiles() -> list[dict[str, Any]]:
+    from .stopwords import available_profiles
+
+    return available_profiles()
+
+
+def resolve_project_stopwords(
+    project_path_value: object,
+    *,
+    base_profile_id: str = "scope-cn-general-v1",
+    additions: list[str] | None = None,
+    exclusions: list[str] | None = None,
+    extension_words: list[str] | None = None,
+) -> dict[str, Any]:
+    from .stopwords import resolve_stopwords
+
+    if not isinstance(project_path_value, str) or not project_path_value:
+        raise ProjectError("invalid_params", "project_path must be a non-empty string")
+    project_path = Path(project_path_value).expanduser().resolve()
+    _load_metadata(project_path)
+    profile = resolve_stopwords(base_profile_id, additions, exclusions, extension_words)
+    updated_at = utc_now()
+    with _connect(project_path) as connection:
+        connection.execute(
+            "INSERT OR REPLACE INTO stopword_profiles VALUES (?, ?, ?, ?, ?)",
+            (
+                "active",
+                profile["base_profile_id"],
+                json.dumps(profile, ensure_ascii=False),
+                profile["resolved_stopword_hash"],
+                updated_at,
+            ),
+        )
+        connection.execute("UPDATE frequency_analyses SET valid = 0")
+        manifest = {
+            "operation": "stopwords.resolve",
+            "profile": profile,
+            "executed_at": updated_at,
+            "network_used": False,
+        }
+        connection.execute(
+            "INSERT INTO audit_events VALUES (?, ?, ?, ?)",
+            (
+                str(uuid.uuid4()),
+                "stopwords.resolve",
+                updated_at,
+                json.dumps(manifest, ensure_ascii=False),
+            ),
+        )
+        connection.commit()
+    return profile
+
+
+def get_project_stopwords(project_path_value: object) -> dict[str, Any]:
+    from .stopwords import resolve_stopwords
+
+    project_path = Path(str(project_path_value)).expanduser().resolve()
+    _load_metadata(project_path)
+    with _connect(project_path) as connection:
+        row = connection.execute(
+            "SELECT profile_json FROM stopword_profiles WHERE profile_id = 'active'"
+        ).fetchone()
+    return json.loads(row["profile_json"]) if row else resolve_stopwords()
+
+
+def import_project_stopwords(project_path_value: object, source_path: object) -> dict[str, Any]:
+    if not isinstance(project_path_value, str) or not isinstance(source_path, str):
+        raise ProjectError("invalid_params", "stopword import requires project_path and file_path")
+    from .stopwords import import_stopword_file
+
+    project_path = Path(project_path_value).expanduser().resolve()
+    _load_metadata(project_path)
+    try:
+        imported = import_stopword_file(project_path, source_path)
+    except ValueError as error:
+        raise ProjectError("stopword_read_failed", str(error)) from error
+    return imported
+
+
+def _frequency_documents(project_path: Path) -> list[dict[str, Any]]:
+    with _connect(project_path) as connection:
+        rows = connection.execute(
+            "SELECT document_id, tokens_json, tokenization_manifest_json FROM documents ORDER BY imported_at"
+        ).fetchall()
+    return [
+        {
+            "document_id": row["document_id"],
+            "tokens": json.loads(row["tokens_json"]) if row["tokens_json"] else None,
+            "tokenization_manifest": json.loads(row["tokenization_manifest_json"])
+            if row["tokenization_manifest_json"]
+            else None,
+        }
+        for row in rows
+    ]
+
+
+def frequency_execute(project_path_value: object) -> dict[str, Any]:
+    from .frequency import analyze_documents, result_hash
+
+    if not isinstance(project_path_value, str) or not project_path_value:
+        raise ProjectError("invalid_params", "project_path must be a non-empty string")
+    project_path = Path(project_path_value).expanduser().resolve()
+    metadata = _load_metadata(project_path)
+    analysis_id = str(uuid.uuid4())
+    result = analyze_documents(
+        _frequency_documents(project_path),
+        get_project_stopwords(project_path),
+        analysis_id=analysis_id,
+    )
+    result["manifest"]["project_id"] = metadata["project_id"]
+    digest = result_hash(result)
+    with _connect(project_path) as connection:
+        connection.execute(
+            "INSERT INTO frequency_analyses VALUES (?, ?, ?, ?, 1, ?)",
+            (
+                analysis_id,
+                json.dumps(result["manifest"], ensure_ascii=False),
+                json.dumps(result["rows"], ensure_ascii=False),
+                digest,
+                result["manifest"]["executed_at"],
+            ),
+        )
+        connection.execute(
+            "INSERT INTO audit_events VALUES (?, ?, ?, ?)",
+            (
+                str(uuid.uuid4()),
+                "frequency.analyze",
+                result["manifest"]["executed_at"],
+                json.dumps(result["manifest"], ensure_ascii=False),
+            ),
+        )
+        connection.commit()
+    return {**result, "analysis_id": analysis_id, "result_hash": digest}
+
+
+def frequency_latest(project_path_value: object) -> dict[str, Any] | None:
+    project_path = Path(str(project_path_value)).expanduser().resolve()
+    _load_metadata(project_path)
+    with _connect(project_path) as connection:
+        row = connection.execute(
+            "SELECT * FROM frequency_analyses ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "analysis_id": row["analysis_id"],
+        "manifest": json.loads(row["manifest_json"]),
+        "rows": json.loads(row["result_json"]),
+        "result_hash": row["result_hash"],
+        "valid": bool(row["valid"]),
+    }
+
+
+def frequency_export(
+    project_path_value: object, destination: object, format_name: object
+) -> dict[str, Any]:
+    from .frequency import export_csv, export_xlsx
+
+    if (
+        not isinstance(project_path_value, str)
+        or not isinstance(destination, str)
+        or format_name not in ("csv", "xlsx")
+    ):
+        raise ProjectError(
+            "invalid_params",
+            "frequency export requires project_path, destination, and csv/xlsx format",
+        )
+    latest = frequency_latest(project_path_value)
+    if latest is None or not latest["valid"]:
+        raise ProjectError("frequency_not_available", "没有可导出的有效词频分析，请先重新计算")
+    result = {"rows": latest["rows"], "manifest": latest["manifest"]}
+    path = (
+        export_csv(result, destination)
+        if format_name == "csv"
+        else export_xlsx(result, destination)
+    )
+    return {
+        "path": str(path),
+        "analysis_id": latest["analysis_id"],
+        "result_hash": latest["result_hash"],
+    }

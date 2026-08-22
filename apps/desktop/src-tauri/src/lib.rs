@@ -441,6 +441,17 @@ async fn tokenization_dictionary_import(
 }
 
 #[tauri::command]
+async fn frequency_analyze(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+) -> Result<Value, String> {
+    approved.require_project(&project_path)?;
+    dispatch(&supervisor, None, json!({"protocol_version":"0.1","request_id":request_id,"method":"frequency.analyze","params":{"project_path":project_path}})).await
+}
+
+#[tauri::command]
 async fn select_project_parent(
     app: tauri::AppHandle,
     approved: State<'_, ApprovedPaths>,
@@ -557,6 +568,7 @@ pub fn run() {
         text_tokenize_preview,
         text_tokenize_execute,
         tokenization_dictionary_import,
+        frequency_analyze,
         select_project_parent,
         select_project_folder,
         select_txt_files,
@@ -579,6 +591,7 @@ pub fn run() {
         text_tokenize_preview,
         text_tokenize_execute,
         tokenization_dictionary_import,
+        frequency_analyze,
         select_project_parent,
         select_project_folder,
         select_txt_files,
