@@ -55,25 +55,46 @@ describe("SCOPE Milestone 1A main flow", () => {
       "政策执行需要同时关注制度设计与基层实践。",
     );
 
-    // Workspace wiring smoke: each tab renders its own right-hand content while the corpus remains available.
+    // Keep the wiring smoke compact because each WebDriver command has a Tauri focus hook.
     await expect($("nav[aria-label='研究工作区']")).toExist();
     await $("button=清洗").click();
-    await expect($("[aria-label='文本清洗']")).toExist();
     await $("button=分词").click();
-    await expect($("[aria-label='中文分词']")).toExist();
     await $("button=词频").click();
-    await expect($("[aria-label='词频分析']")).toExist();
-    await browser.waitUntil(async () => (await $("select").isExisting()), {
-      timeout: 30_000,
-      interval: 500,
+    await browser.pause(1_000);
+    const workspaceState = await browser.execute(() => ({
+      cleaning: Boolean(document.querySelector("[aria-label='文本清洗']")),
+      tokenize: Boolean(document.querySelector("[aria-label='中文分词']")),
+      frequency: Boolean(document.querySelector("[aria-label='词频分析']")),
+      profileOptions: document.querySelectorAll(
+        ".stopword-controls select option",
+      ).length,
+      scopeDefault: document.querySelector(".stopword-controls select")?.value,
+      exportCsv: Boolean(
+        Array.from(document.querySelectorAll("button")).find(
+          (button) => button.textContent?.trim() === "导出 CSV",
+        ),
+      ),
+      exportXlsx: Boolean(
+        Array.from(document.querySelectorAll("button")).find(
+          (button) => button.textContent?.trim() === "导出 XLSX",
+        ),
+      ),
+      assistant: Boolean(
+        Array.from(document.querySelectorAll("button")).find(
+          (button) => button.textContent?.trim() === "停用词优化助手",
+        ),
+      ),
+    }));
+    expect(workspaceState).toEqual({
+      cleaning: true,
+      tokenize: true,
+      frequency: true,
+      profileOptions: expect.any(Number),
+      scopeDefault: "scope-cn-general-v1",
+      exportCsv: true,
+      exportXlsx: true,
+      assistant: true,
     });
-    const profileSelect = $(".stopword-controls select");
-    await expect(profileSelect).toExist();
-    await expect(profileSelect).toHaveValue("scope-cn-general-v1");
-    const options = await profileSelect.$$("option");
-    expect(options.length).toBeGreaterThanOrEqual(7);
-    await expect($("button=导出 CSV")).toExist();
-    await expect($("button=导出 XLSX")).toExist();
-    await expect($("button=停用词优化助手")).toExist();
+    expect(workspaceState.profileOptions).toBeGreaterThanOrEqual(7);
   });
 });
