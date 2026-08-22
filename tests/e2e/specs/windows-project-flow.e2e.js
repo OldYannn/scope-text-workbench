@@ -112,25 +112,56 @@ describe("SCOPE Milestone 1A main flow", () => {
     });
     expect(workspaceState.profileOptions).toBeGreaterThanOrEqual(7);
 
-    await $("button=清洗").click();
-    await $("button=执行清洗").click();
-    await browser.waitUntil(
-      async () => (await $(".notice").getText()).includes("清洗已保存"),
-      { timeout: 60_000, interval: 1_000 },
-    );
-    await $("button=分词").click();
-    await $("button=重新运行分词").click();
-    await browser.waitUntil(
-      async () => (await $(".token-result").getText()).includes("基层治理"),
-      { timeout: 60_000, interval: 1_000 },
-    );
-    await $("button=词频").click();
+    await browser.execute(async () => {
+      const clickButton = (label) => {
+        const button = Array.from(document.querySelectorAll("button")).find(
+          (item) => item.textContent?.trim() === label,
+        );
+        if (!button) throw new Error(`Missing button: ${label}`);
+        button.click();
+      };
+      const waitFor = async (predicate) => {
+        const deadline = Date.now() + 60_000;
+        while (Date.now() < deadline) {
+          if (predicate()) return;
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        throw new Error("Timed out waiting for workflow state");
+      };
+      clickButton("清洗");
+      await waitFor(() =>
+        Array.from(document.querySelectorAll("button")).some(
+          (item) => item.textContent?.trim() === "执行清洗",
+        ),
+      );
+      clickButton("执行清洗");
+      await waitFor(() =>
+        document.querySelector(".notice")?.textContent?.includes("清洗已保存"),
+      );
+      clickButton("分词");
+      await waitFor(() =>
+        Array.from(document.querySelectorAll("button")).some(
+          (item) => item.textContent?.trim() === "重新运行分词",
+        ),
+      );
+      clickButton("重新运行分词");
+      await waitFor(() =>
+        document
+          .querySelector(".token-result")
+          ?.textContent?.includes("基层治理"),
+      );
+      clickButton("词频");
+    });
 
     await $("button=计算 TF / DF / RF10K").click();
-    await browser.waitUntil(
-      async () => await $(".frequency-status-success").isExisting(),
-      { timeout: 60_000, interval: 1_000 },
-    );
+    await browser.execute(async () => {
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        if (document.querySelector(".frequency-status-success")) return;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      throw new Error("Timed out waiting for frequency success");
+    });
     await expect($(".frequency-table")).toExist();
     const frequencyRow = await browser.execute(() => {
       const row = Array.from(
@@ -152,10 +183,14 @@ describe("SCOPE Milestone 1A main flow", () => {
     expect(await $(".token-result").getText()).toContain("基层治理");
     await $("button=词频").click();
     await $("button=计算 TF / DF / RF10K").click();
-    await browser.waitUntil(
-      async () => await $(".frequency-status-success").isExisting(),
-      { timeout: 60_000, interval: 1_000 },
-    );
+    await browser.execute(async () => {
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        if (document.querySelector(".frequency-status-success")) return;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      throw new Error("Timed out waiting for filtered frequency success");
+    });
     const filteredRow = await browser.execute(() =>
       Array.from(document.querySelectorAll(".frequency-table tbody tr")).some(
         (item) => item.textContent?.includes("基层治理"),
