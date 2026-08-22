@@ -927,7 +927,7 @@ def frequency_execute(
     metadata = _load_metadata(project_path)
     if profile_config is not None:
         resolve_project_stopwords(
-            project_path,
+            str(project_path),
             base_profile_id=profile_config.get("base_profile_id", "scope-cn-general-v1"),
             additions=profile_config.get("custom_additions", []),
             exclusions=profile_config.get("custom_exclusions", []),

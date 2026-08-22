@@ -13,6 +13,13 @@ from scope_engine.frequency import (
     export_xlsx,
     optimization_candidates,
 )
+from scope_engine.project_store import (
+    clean_execute,
+    create_project,
+    frequency_execute,
+    import_txt,
+    tokenize_execute,
+)
 from scope_engine.stopwords import (
     available_profiles,
     duplicate_lines,
@@ -63,6 +70,33 @@ class FrequencyAnalysisTest(unittest.TestCase):
             self.assertTrue(csv_path.read_bytes().startswith(b"\xef\xbb\xbf"))
             xlsx_path = export_xlsx(result, Path(directory) / "词频.xlsx")
             self.assertTrue(xlsx_path.read_bytes().startswith(b"PK"))
+
+    def test_project_frequency_accepts_profile_config(self):
+        fixture_path = Path(__file__).parent / "fixtures" / "corpus" / "frequency-gui.txt"
+        with tempfile.TemporaryDirectory() as directory:
+            project_path = create_project("频率配置", directory)["project"]["project_path"]
+            imported = import_txt(project_path, [str(fixture_path)])
+            document = imported["entries"][0]["document"]
+            rules = {
+                "normalize_whitespace": True,
+                "normalize_newlines": True,
+                "remove_urls": True,
+                "strip_html": True,
+                "punctuation_mode": "keep",
+            }
+            clean_execute(project_path, document["document_id"], rules)
+            tokenize_execute(project_path, document["document_id"], {})
+            result = frequency_execute(
+                project_path,
+                {
+                    "base_profile_id": "scope-cn-general-v1",
+                    "custom_additions": [],
+                    "custom_exclusions": [],
+                },
+            )
+            row = next(row for row in result["rows"] if row["token"] == "需要")
+            self.assertEqual(row["tf"], 2)
+            self.assertEqual(row["df"], 1)
 
     def test_upstream_snapshots_and_provenance_are_deterministic(self):
         root = Path(__file__).parents[1] / "src" / "scope_engine" / "resources" / "stopwords"

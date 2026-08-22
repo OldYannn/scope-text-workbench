@@ -184,21 +184,21 @@ describe("SCOPE Milestone 1A main flow", () => {
     const frequencyRow = await browser.execute(() => {
       const row = Array.from(
         document.querySelectorAll(".frequency-table tbody tr"),
-      ).find((item) => item.textContent?.includes("基层治理"));
+      ).find((item) => item.textContent?.includes("需要"));
       return row?.textContent ?? null;
     });
-    expect(frequencyRow).toContain("基层治理");
+    expect(frequencyRow).toContain("需要");
     expect(frequencyRow).toContain("2");
     expect(frequencyRow).toContain("1");
 
-    await $("input[aria-label='手动增加停用词']").setValue("基层治理");
+    await $("input[aria-label='手动增加停用词']").setValue("需要");
     await $("button=增加").click();
     await expect($(".frequency-status-idle")).toExist();
     await expect($(".frequency-status-idle")).toHaveText(
       expect.stringContaining("尚未执行词频分析"),
     );
     await $("button=分词").click();
-    expect(await $(".token-result").getText()).toContain("基层治理");
+    expect(await $(".token-result").getText()).toContain("需要");
     await $("button=词频").click();
     const filteredFrequencyState = await browser.execute(async () => {
       const button = Array.from(document.querySelectorAll("button")).find(
@@ -230,7 +230,7 @@ describe("SCOPE Milestone 1A main flow", () => {
     expect(filteredFrequencyState.status).toBe("success");
     const filteredRow = await browser.execute(() =>
       Array.from(document.querySelectorAll(".frequency-table tbody tr")).some(
-        (item) => item.textContent?.includes("基层治理"),
+        (item) => item.textContent?.includes("需要"),
       ),
     );
     expect(filteredRow).toBe(false);
