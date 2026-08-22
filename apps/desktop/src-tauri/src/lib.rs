@@ -15,6 +15,7 @@ struct ApprovedPaths {
     project_parents: Mutex<HashSet<PathBuf>>,
     projects: Mutex<HashSet<PathBuf>>,
     sources: Mutex<HashSet<PathBuf>>,
+    exports: Mutex<HashSet<PathBuf>>,
 }
 
 impl ApprovedPaths {
@@ -93,6 +94,15 @@ impl ApprovedPaths {
         Self::insert(&self.sources, path)
     }
 
+    fn approve_export(&self, path: impl AsRef<Path>) -> Result<String, String> {
+        let path = Self::comparison_path(path.as_ref().to_path_buf());
+        self.exports
+            .lock()
+            .map_err(|_| "Path approval state is unavailable".to_string())?
+            .insert(path.clone());
+        Ok(path.to_string_lossy().into_owned())
+    }
+
     fn require_parent(&self, path: impl AsRef<Path>) -> Result<(), String> {
         Self::require(&self.project_parents, path)
     }
@@ -103,6 +113,20 @@ impl ApprovedPaths {
 
     fn require_source(&self, path: impl AsRef<Path>) -> Result<(), String> {
         Self::require(&self.sources, path)
+    }
+
+    fn require_export(&self, path: impl AsRef<Path>) -> Result<(), String> {
+        let supplied = Self::comparison_path(path.as_ref().to_path_buf());
+        if self
+            .exports
+            .lock()
+            .map_err(|_| "Path approval state is unavailable".to_string())?
+            .contains(&supplied)
+        {
+            Ok(())
+        } else {
+            Err("The export path was not approved by the system file picker".into())
+        }
     }
 }
 
@@ -446,9 +470,70 @@ async fn frequency_analyze(
     approved: State<'_, ApprovedPaths>,
     request_id: String,
     project_path: String,
+    profile_config: Option<Value>,
 ) -> Result<Value, String> {
     approved.require_project(&project_path)?;
-    dispatch(&supervisor, None, json!({"protocol_version":"0.1","request_id":request_id,"method":"frequency.analyze","params":{"project_path":project_path}})).await
+    dispatch(&supervisor, None, json!({"protocol_version":"0.1","request_id":request_id,"method":"frequency.analyze","params":{"project_path":project_path,"profile_config":profile_config}})).await
+}
+
+#[tauri::command]
+async fn stopword_profiles(
+    supervisor: State<'_, EngineSupervisor>,
+    request_id: String,
+) -> Result<Value, String> {
+    dispatch(&supervisor, None, json!({"protocol_version":"0.1","request_id":request_id,"method":"stopwords.profiles","params":{}})).await
+}
+
+#[tauri::command]
+async fn stopword_get(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+) -> Result<Value, String> {
+    approved.require_project(&project_path)?;
+    dispatch(&supervisor, None, json!({"protocol_version":"0.1","request_id":request_id,"method":"stopwords.get","params":{"project_path":project_path}})).await
+}
+
+#[tauri::command]
+async fn stopword_resolve(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    base_profile_id: String,
+    custom_additions: Vec<String>,
+    custom_exclusions: Vec<String>,
+) -> Result<Value, String> {
+    approved.require_project(&project_path)?;
+    dispatch(&supervisor, None, json!({"protocol_version":"0.1","request_id":request_id,"method":"stopwords.resolve","params":{"project_path":project_path,"base_profile_id":base_profile_id,"custom_additions":custom_additions,"custom_exclusions":custom_exclusions}})).await
+}
+
+#[tauri::command]
+async fn stopword_import(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    file_path: String,
+) -> Result<Value, String> {
+    approved.require_project(&project_path)?;
+    approved.require_source(&file_path)?;
+    dispatch(&supervisor, None, json!({"protocol_version":"0.1","request_id":request_id,"method":"stopwords.import","params":{"project_path":project_path,"file_path":file_path}})).await
+}
+
+#[tauri::command]
+async fn frequency_export(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    destination: String,
+    format: String,
+) -> Result<Value, String> {
+    approved.require_project(&project_path)?;
+    approved.require_export(&destination)?;
+    dispatch(&supervisor, None, json!({"protocol_version":"0.1","request_id":request_id,"method":"frequency.export","params":{"project_path":project_path,"destination":destination,"format":format}})).await
 }
 
 #[tauri::command]
@@ -530,6 +615,50 @@ async fn select_user_dictionary(
         .transpose()
 }
 
+#[tauri::command]
+async fn select_stopword_file(
+    app: tauri::AppHandle,
+    approved: State<'_, ApprovedPaths>,
+) -> Result<Option<String>, String> {
+    app.dialog()
+        .file()
+        .set_title("选择 UTF-8 停用词 TXT")
+        .add_filter("TXT 词表", &["txt"])
+        .blocking_pick_file()
+        .map(|selected| {
+            selected
+                .into_path()
+                .map_err(|_| "The selected file is unavailable".to_string())
+                .and_then(|path| approved.approve_source(path))
+        })
+        .transpose()
+}
+
+#[tauri::command]
+async fn select_frequency_export(
+    app: tauri::AppHandle,
+    approved: State<'_, ApprovedPaths>,
+    format: String,
+) -> Result<Option<String>, String> {
+    let (title, extension) = if format == "xlsx" {
+        ("导出 XLSX 词频结果", "xlsx")
+    } else {
+        ("导出 CSV 词频结果", "csv")
+    };
+    app.dialog()
+        .file()
+        .set_title(title)
+        .add_filter(extension, &[extension])
+        .blocking_save_file()
+        .map(|selected| {
+            selected
+                .into_path()
+                .map_err(|_| "The selected path is unavailable".to_string())
+                .and_then(|path| approved.approve_export(path))
+        })
+        .transpose()
+}
+
 #[cfg(feature = "e2e")]
 #[tauri::command]
 fn e2e_paths(approved: State<'_, ApprovedPaths>) -> Result<Value, String> {
@@ -569,10 +698,17 @@ pub fn run() {
         text_tokenize_execute,
         tokenization_dictionary_import,
         frequency_analyze,
+        stopword_profiles,
+        stopword_get,
+        stopword_resolve,
+        stopword_import,
+        frequency_export,
+        select_frequency_export,
         select_project_parent,
         select_project_folder,
         select_txt_files,
         select_user_dictionary,
+        select_stopword_file,
         e2e_paths
     ]);
 
@@ -592,10 +728,17 @@ pub fn run() {
         text_tokenize_execute,
         tokenization_dictionary_import,
         frequency_analyze,
+        stopword_profiles,
+        stopword_get,
+        stopword_resolve,
+        stopword_import,
+        frequency_export,
+        select_frequency_export,
         select_project_parent,
         select_project_folder,
         select_txt_files,
-        select_user_dictionary
+        select_user_dictionary,
+        select_stopword_file
     ]);
 
     builder

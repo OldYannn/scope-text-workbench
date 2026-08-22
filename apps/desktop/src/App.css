@@ -725,3 +725,72 @@ button {
     transform: translateY(8px);
   }
 }
+
+.stopword-controls,
+.frequency-toolbar,
+.custom-stopwords,
+.candidate-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.stopword-controls,
+.frequency-toolbar {
+  padding: 14px 0;
+  border-block: 1px solid var(--rule);
+}
+
+.stopword-controls label,
+.frequency-toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.stopword-controls select,
+.frequency-toolbar select,
+.stopword-input {
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--rule);
+  background: white;
+}
+
+.stopword-input {
+  width: 150px;
+}
+
+.resolved-stopwords,
+.custom-stopwords,
+.optimization-panel {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.stopword-chip {
+  margin: 3px;
+  padding: 3px 7px;
+  border: 1px solid var(--rule);
+  background: white;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.candidate-row {
+  padding: 8px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 0.8rem;
+}
+
+.candidate-row > span:first-child {
+  min-width: 100px;
+  font-weight: 700;
+}

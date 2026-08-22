@@ -83,6 +83,16 @@ Milestone 1B 已完成，分词只允许使用明确保存的 `analysis_text`；
 
 文本类型扩展 profile 仅完成数据模型，待方法审查后再发布词项。
 
+### Milestone 2B.1 — Stopword Product Closure & Curation
+
+- [x] 四套 goto456/stopwords 完整 upstream snapshot、normalized runtime profile 和 hash/count metadata
+- [x] deterministic provenance generator 与 2312 行 token-level matrix
+- [x] SCOPE v1 标记为 draft，duplicate detection 与 lifecycle changelog
+- [x] GUI profile switching、custom additions/exclusions、resolved set viewer 和 UTF-8 TXT import
+- [x] 可选优化助手、候选操作、排序、Top N 和 raw/eligible/effective 计数
+- [x] GUI CSV/XLSX 文件保存导出
+- [ ] Windows/macOS 中文路径 UAT 与 CI 构建验证
+
 后续将按照 `PROJECT_BRIEF.md` 依次推进中文分词与词频分析、共现分析、研究审计链、可选模型 Provider、实验性 AI 编码和首个 Public Alpha。
 
 宣布任何 Milestone 完成前，都必须通过 `AGENTS.md` 规定的构建、测试、格式、文档、隐私和可复现性检查。

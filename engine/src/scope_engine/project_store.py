@@ -837,7 +837,10 @@ def resolve_project_stopwords(
         raise ProjectError("invalid_params", "project_path must be a non-empty string")
     project_path = Path(project_path_value).expanduser().resolve()
     _load_metadata(project_path)
-    profile = resolve_stopwords(base_profile_id, additions, exclusions, extension_words)
+    try:
+        profile = resolve_stopwords(base_profile_id, additions, exclusions, extension_words)
+    except ValueError as error:
+        raise ProjectError("invalid_params", str(error)) from error
     updated_at = utc_now()
     with _connect(project_path) as connection:
         connection.execute(
@@ -913,13 +916,23 @@ def _frequency_documents(project_path: Path) -> list[dict[str, Any]]:
     ]
 
 
-def frequency_execute(project_path_value: object) -> dict[str, Any]:
+def frequency_execute(
+    project_path_value: object, profile_config: dict[str, Any] | None = None
+) -> dict[str, Any]:
     from .frequency import analyze_documents, result_hash
 
     if not isinstance(project_path_value, str) or not project_path_value:
         raise ProjectError("invalid_params", "project_path must be a non-empty string")
     project_path = Path(project_path_value).expanduser().resolve()
     metadata = _load_metadata(project_path)
+    if profile_config is not None:
+        resolve_project_stopwords(
+            project_path,
+            base_profile_id=profile_config.get("base_profile_id", "scope-cn-general-v1"),
+            additions=profile_config.get("custom_additions", []),
+            exclusions=profile_config.get("custom_exclusions", []),
+            extension_words=profile_config.get("extension_words", []),
+        )
     analysis_id = str(uuid.uuid4())
     result = analyze_documents(
         _frequency_documents(project_path),

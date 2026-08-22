@@ -1,0 +1,46 @@
+{
+  "goto456-general": {
+    "repository": "https://github.com/goto456/stopwords",
+    "commit": "bf8b03b9d3709222804ae89578156d1a0d8bf2b2",
+    "upstream_filename": "cn_stopwords.txt",
+    "raw_sha256": "5c8d5dd24906615de61ae4056f9261b6fb9f42f58bc75f442fe1032b511dc04b",
+    "normalized_sha256": "4e9edd5323555e3b1cb07d5b6782c636b98aabb2cbb619e3056cc32b4688822f",
+    "raw_line_count": 746,
+    "unique_token_count": 746,
+    "accessed_date": "2026-08-22",
+    "attribution": "goto456/stopwords authors"
+  },
+  "hit": {
+    "repository": "https://github.com/goto456/stopwords",
+    "commit": "bf8b03b9d3709222804ae89578156d1a0d8bf2b2",
+    "upstream_filename": "hit_stopwords.txt",
+    "raw_sha256": "84e526454db0245cab0d167df067f00298d271ad2c86391d45f5e880c422cbae",
+    "normalized_sha256": "883b950a77391b9487aa30ed35c5532723654a63374656a4ab691ef333512f36",
+    "raw_line_count": 767,
+    "unique_token_count": 749,
+    "accessed_date": "2026-08-22",
+    "attribution": "goto456/stopwords authors"
+  },
+  "baidu": {
+    "repository": "https://github.com/goto456/stopwords",
+    "commit": "bf8b03b9d3709222804ae89578156d1a0d8bf2b2",
+    "upstream_filename": "baidu_stopwords.txt",
+    "raw_sha256": "b11ff810ee5c8934dc46b57f3a1ba85457e3893e89acdafb5cd286570fe793a3",
+    "normalized_sha256": "87b9f68e63954e8d437fb52b468e4eb460146adef7408f977aa1da9c3f878ce9",
+    "raw_line_count": 1396,
+    "unique_token_count": 1395,
+    "accessed_date": "2026-08-22",
+    "attribution": "goto456/stopwords authors"
+  },
+  "scu": {
+    "repository": "https://github.com/goto456/stopwords",
+    "commit": "bf8b03b9d3709222804ae89578156d1a0d8bf2b2",
+    "upstream_filename": "scu_stopwords.txt",
+    "raw_sha256": "2c325256276f2c4ed5ec076178c08494af7a46bf44d0b9be2fc0214d5b606d41",
+    "normalized_sha256": "a98a8d03f26765c556371785fcfa1720f1c60a4b6aa40d63b9d67d0fba404dec",
+    "raw_line_count": 976,
+    "unique_token_count": 860,
+    "accessed_date": "2026-08-22",
+    "attribution": "goto456/stopwords authors"
+  }
+}

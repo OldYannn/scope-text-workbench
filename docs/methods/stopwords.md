@@ -6,7 +6,7 @@
 
 ## 方法
 
-当前 SCOPE v1 冻结词数为 86（去重后，UTF-8 文本中的非注释非空行）；逐词来源与筛选说明见 provenance matrix。
+当前 SCOPE v1 冻结词数为 85（去重后，UTF-8 文本中的非注释非空行），状态为 `draft`，不是已经充分外部验证的 Public Alpha 词表。逐词来源与筛选说明见 provenance matrix。
 
 分词完成后，保存的结构化 token sequence 是不可变基础数据。停用词是下游 filter：`tokens -> eligibility -> exact-token stopword filter -> frequency analysis`。只按完整 token 精确匹配，因此停用词 `的` 不会影响 `目的地` 或 `的确`。基础 token eligibility 默认过滤空字符串、空白和纯标点/符号；中文词、英文/字母、数字和单字词都保留。
 
@@ -14,7 +14,7 @@ TF 是当前参与分析的全部文档中 token 的出现总次数；DF 是至�
 
 ## Stopword Profile
 
-profile 由 `builtin_profile + optional text-type extension profiles + custom additions - custom exclusions` 解析为 resolved stopword set。当前不预填未经方法审查的文本类型词项，但模型已支持学术、访谈、政策、新闻和社交媒体扩展。项目保存 additions、exclusions、resolved set、SHA-256、profile ID/version、执行时间；用户导入的 UTF-8 TXT 会复制到项目 `stopwords/`，不依赖原始绝对路径。内置 v1 不会静默修改，变更必须创建新版本并写入 CHANGELOG。
+profile 由 `builtin_profile + optional text-type extension profiles + custom additions - custom exclusions` 解析为 resolved stopword set。当前不预填未经方法审查的文本类型词项，但模型已支持学术、访谈、政策、新闻和社交媒体扩展。项目保存 additions、exclusions、resolved set、SHA-256、profile ID/version、执行时间；用户导入的 UTF-8 TXT 会复制到项目 `stopwords/`，不依赖原始绝对路径。内置 v1 当前是 `draft`；标记为 `released` 后不会静默修改，变更必须创建 v1.1/v2 并写入 CHANGELOG。
 
 ## 停用词优化助手
 

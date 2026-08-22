@@ -72,6 +72,7 @@ type FrequencyRow = {
 };
 type FrequencyResult = {
   rows: FrequencyRow[];
+  candidates: FrequencyRow[];
   manifest: {
     included_document_count: number;
     excluded_document_ids: string[];
@@ -83,6 +84,24 @@ type FrequencyResult = {
   };
   skipped_document_count: number;
   result_hash: string;
+  profile: StopwordProfile;
+};
+type StopwordProfile = {
+  base_profile_id: string;
+  base_profile_version: string;
+  base_profile_hash: string;
+  custom_additions: string[];
+  custom_exclusions: string[];
+  resolved_stopwords: string[];
+  resolved_stopword_hash: string;
+  status?: string;
+};
+type StopwordOption = {
+  profile_id: string;
+  version: string;
+  label: string;
+  count: number;
+  status: string;
 };
 
 type EngineMessage<T> = {
@@ -137,6 +156,8 @@ const errorMessages: Record<string, string> = {
   dictionary_read_failed: "用户词典必须是 UTF-8 文本",
   dictionary_not_found: "项目中找不到该用户词典",
   unsupported_tokenization_mode: "当前版本只支持标准分词（精确模式）",
+  stopword_read_failed: "停用词文件必须是 UTF-8 文本",
+  frequency_not_available: "没有可导出的有效词频分析，请先重新计算",
 };
 
 function requestId(prefix: string) {
@@ -201,6 +222,20 @@ function App() {
     null,
   );
   const [frequency, setFrequency] = useState<FrequencyResult | null>(null);
+  const [stopwordOptions, setStopwordOptions] = useState<StopwordOption[]>([]);
+  const [stopwordProfile, setStopwordProfile] =
+    useState<StopwordProfile | null>(null);
+  const [stopwordBase, setStopwordBase] = useState("scope-cn-general-v1");
+  const [stopwordAdditions, setStopwordAdditions] = useState<string[]>([]);
+  const [stopwordExclusions, setStopwordExclusions] = useState<string[]>([]);
+  const [stopwordInput, setStopwordInput] = useState("");
+  const [showResolvedStopwords, setShowResolvedStopwords] = useState(false);
+  const [showOptimization, setShowOptimization] = useState(false);
+  const [sortKey, setSortKey] = useState<
+    "tf" | "df" | "document_coverage" | "rf10k" | "token"
+  >("tf");
+  const [topN, setTopN] = useState("100");
+  const [ignoredCandidates, setIgnoredCandidates] = useState<string[]>([]);
 
   useEffect(() => {
     if (!desktopRuntime) return;
@@ -209,6 +244,34 @@ function App() {
       .catch(() => undefined)
       .finally(() => setDesktopReady(true));
   }, [desktopRuntime]);
+
+  useEffect(() => {
+    if (!project || !desktopRuntime) return;
+    void Promise.all([
+      Promise.resolve().then(() =>
+        invoke<EngineMessage<{ profiles: StopwordOption[] }>>(
+          "stopword_profiles",
+          { requestId: requestId("stopword-profiles") },
+        ),
+      ),
+      Promise.resolve().then(() =>
+        invoke<EngineMessage<{ profile: StopwordProfile }>>("stopword_get", {
+          requestId: requestId("stopword-get"),
+          projectPath: project.project_path,
+        }),
+      ),
+    ])
+      .then(([profiles, active]) => {
+        if (profiles.result) setStopwordOptions(profiles.result.profiles);
+        if (active.result) {
+          setStopwordProfile(active.result.profile);
+          setStopwordBase(active.result.profile.base_profile_id);
+          setStopwordAdditions(active.result.profile.custom_additions);
+          setStopwordExclusions(active.result.profile.custom_exclusions);
+        }
+      })
+      .catch(() => undefined);
+  }, [project, desktopRuntime]);
 
   async function createProject() {
     if (!projectName.trim() || busy || !desktopRuntime) return;
@@ -460,6 +523,11 @@ function App() {
         {
           requestId: requestId("frequency"),
           projectPath: project.project_path,
+          profileConfig: {
+            base_profile_id: stopwordBase,
+            custom_additions: stopwordAdditions,
+            custom_exclusions: stopwordExclusions,
+          },
         },
       );
       if (message.type === "error" || !message.result) {
@@ -467,6 +535,7 @@ function App() {
         return;
       }
       setFrequency(message.result);
+      setStopwordProfile(message.result.profile);
       setNotice(
         `词频分析完成：${message.result.manifest.included_document_count} / ${documents.length} 篇文档参与统计`,
       );
@@ -475,6 +544,114 @@ function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function resolveStopwords(
+    nextBase = stopwordBase,
+    additions = stopwordAdditions,
+    exclusions = stopwordExclusions,
+  ) {
+    if (!project || busy) return;
+    setBusy(true);
+    try {
+      const message = await invoke<EngineMessage<{ profile: StopwordProfile }>>(
+        "stopword_resolve",
+        {
+          requestId: requestId("stopword-resolve"),
+          projectPath: project.project_path,
+          baseProfileId: nextBase,
+          customAdditions: additions,
+          customExclusions: exclusions,
+        },
+      );
+      if (message.type === "error" || !message.result) {
+        setNotice(`无法保存停用词配置：${engineError(message, "未知错误")}`);
+        return;
+      }
+      setStopwordProfile(message.result.profile);
+      setStopwordBase(nextBase);
+      setStopwordAdditions(additions);
+      setStopwordExclusions(exclusions);
+      setFrequency(null);
+      setNotice("停用词配置已变化，需要重新计算词频；现有分词结果不会改变。");
+    } catch (error) {
+      setNotice(`无法保存停用词配置：${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function addStopword() {
+    const word = stopwordInput.trim();
+    if (!word || stopwordAdditions.includes(word)) return;
+    setStopwordInput("");
+    void resolveStopwords(
+      stopwordBase,
+      [...stopwordAdditions, word],
+      stopwordExclusions,
+    );
+  }
+
+  function keepStopword(word: string) {
+    if (stopwordExclusions.includes(word)) return;
+    void resolveStopwords(stopwordBase, stopwordAdditions, [
+      ...stopwordExclusions,
+      word,
+    ]);
+  }
+
+  function addCandidate(word: string) {
+    if (stopwordAdditions.includes(word)) return;
+    void resolveStopwords(
+      stopwordBase,
+      [...stopwordAdditions, word],
+      stopwordExclusions,
+    );
+  }
+
+  async function importStopwords() {
+    if (!project || busy || !desktopRuntime) return;
+    const filePath = await invoke<string | null>("select_stopword_file");
+    if (!filePath) return;
+    const message = await invoke<EngineMessage<{ words: string[] }>>(
+      "stopword_import",
+      {
+        requestId: requestId("stopword-import"),
+        projectPath: project.project_path,
+        filePath,
+      },
+    );
+    if (message.type === "error" || !message.result) {
+      setNotice(`无法导入停用词：${engineError(message, "未知错误")}`);
+      return;
+    }
+    void resolveStopwords(
+      stopwordBase,
+      [...stopwordAdditions, ...message.result.words],
+      stopwordExclusions,
+    );
+  }
+
+  async function exportFrequency(format: "csv" | "xlsx") {
+    if (!project || !frequency || busy || !desktopRuntime) return;
+    const destination = await invoke<string | null>("select_frequency_export", {
+      format,
+    });
+    if (!destination) return;
+    const message = await invoke<EngineMessage<{ path: string }>>(
+      "frequency_export",
+      {
+        requestId: requestId("frequency-export"),
+        projectPath: project.project_path,
+        destination,
+        format,
+      },
+    );
+    setNotice(
+      message.type === "error"
+        ? `导出失败：${engineError(message, "未知错误")}`
+        : `已导出${format === "csv" ? " CSV" : " XLSX"}：${destination}`,
+    );
   }
 
   async function previewCleaning() {
@@ -915,18 +1092,219 @@ function App() {
             计算 TF / DF / RF10K
           </button>
         </div>
+        <div className="stopword-controls">
+          <label>
+            停用词方案
+            <select
+              value={stopwordBase}
+              onChange={(event) => void resolveStopwords(event.target.value)}
+              disabled={busy}
+            >
+              {stopwordOptions.map((option) => (
+                <option value={option.profile_id} key={option.profile_id}>
+                  {option.label}
+                  {option.profile_id === "scope-cn-general-v1"
+                    ? "（推荐，Draft）"
+                    : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span>
+            版本：{stopwordProfile?.base_profile_version ?? "1"} · 生效词数：
+            {stopwordProfile?.resolved_stopwords.length ?? 0} · 增加：
+            {stopwordAdditions.length} · 保留：{stopwordExclusions.length}
+          </span>
+          <button
+            className="text-button"
+            onClick={() => setShowResolvedStopwords((value) => !value)}
+          >
+            {showResolvedStopwords ? "收起实际词表" : "查看实际词表"}
+          </button>
+          <button
+            className="text-button"
+            onClick={() => void importStopwords()}
+            disabled={busy}
+          >
+            导入 UTF-8 TXT
+          </button>
+          <input
+            className="stopword-input"
+            value={stopwordInput}
+            onChange={(event) => setStopwordInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") addStopword();
+            }}
+            placeholder="手动增加词语"
+            aria-label="手动增加停用词"
+          />
+          <button className="text-button" onClick={addStopword} disabled={busy}>
+            增加
+          </button>
+          <button
+            className="text-button"
+            onClick={() => void resolveStopwords("scope-cn-general-v1", [], [])}
+            disabled={busy}
+          >
+            恢复默认
+          </button>
+        </div>
+        {showResolvedStopwords && (
+          <div className="resolved-stopwords" aria-label="实际停用词集合">
+            {(stopwordProfile?.resolved_stopwords ?? []).map((word) => (
+              <button
+                key={word}
+                className="stopword-chip"
+                onClick={() => keepStopword(word)}
+                title="点击保留该词"
+              >
+                {word}
+              </button>
+            ))}
+          </div>
+        )}
+        {(stopwordAdditions.length > 0 || stopwordExclusions.length > 0) && (
+          <div className="custom-stopwords">
+            <span>
+              增加：
+              {stopwordAdditions.map((word) => (
+                <button
+                  key={word}
+                  className="stopword-chip"
+                  onClick={() =>
+                    void resolveStopwords(
+                      stopwordBase,
+                      stopwordAdditions.filter((item) => item !== word),
+                      stopwordExclusions,
+                    )
+                  }
+                >
+                  {word} ×
+                </button>
+              ))}
+            </span>
+            <span>
+              保留：
+              {stopwordExclusions.map((word) => (
+                <button
+                  key={word}
+                  className="stopword-chip"
+                  onClick={() =>
+                    void resolveStopwords(
+                      stopwordBase,
+                      stopwordAdditions,
+                      stopwordExclusions.filter((item) => item !== word),
+                    )
+                  }
+                >
+                  {word} ×
+                </button>
+              ))}
+            </span>
+          </div>
+        )}
         <p className="cleaning-note">
-          当前停用词：SCOPE 中文通用停用词表
-          v1。停用词只过滤下游统计，不修改已保存 token。
+          停用词只过滤下游统计，不修改已保存 token。SCOPE v1 当前为 Draft /
+          开发版本，Public Alpha 前需通过多类型真实语料验证。
         </p>
         {frequency ? (
           <>
             <p className="cleaning-note">
               本次分析：{frequency.manifest.included_document_count} /{" "}
               {documents.length} 篇文档；{frequency.skipped_document_count}{" "}
-              篇尚未完成分词或结果已失效，未参与统计。有效 token{" "}
+              篇尚未完成分词或结果已失效，未参与统计。raw{" "}
+              {formatCount(frequency.manifest.raw_token_count)}；eligible{" "}
+              {formatCount(frequency.manifest.eligible_token_count)}；effective{" "}
               {formatCount(frequency.manifest.effective_token_count)}。
             </p>
+            <div className="frequency-toolbar">
+              <label>
+                排序
+                <select
+                  value={sortKey}
+                  onChange={(event) =>
+                    setSortKey(event.target.value as typeof sortKey)
+                  }
+                >
+                  <option value="tf">TF</option>
+                  <option value="df">DF</option>
+                  <option value="document_coverage">Coverage</option>
+                  <option value="rf10k">RF10K</option>
+                  <option value="token">词语</option>
+                </select>
+              </label>
+              <label>
+                显示
+                <select
+                  value={topN}
+                  onChange={(event) => setTopN(event.target.value)}
+                >
+                  <option value="50">Top 50</option>
+                  <option value="100">Top 100</option>
+                  <option value="500">Top 500</option>
+                  <option value="all">全部</option>
+                </select>
+              </label>
+              <button
+                className="text-button"
+                onClick={() => setShowOptimization((value) => !value)}
+              >
+                停用词优化助手
+              </button>
+              <button
+                className="text-button"
+                onClick={() => void exportFrequency("csv")}
+              >
+                导出 CSV
+              </button>
+              <button
+                className="text-button"
+                onClick={() => void exportFrequency("xlsx")}
+              >
+                导出 XLSX
+              </button>
+            </div>
+            {showOptimization && (
+              <div className="optimization-panel">
+                <strong>停用词优化助手</strong>
+                <p>
+                  以下词高频并广泛分布于语料中，可能值得检查是否属于本项目的通用语言噪声。系统不会自动删除，是否设为停用词由研究者决定。
+                </p>
+                {frequency.candidates
+                  .filter((row) => !ignoredCandidates.includes(row.token))
+                  .map((row) => (
+                    <div className="candidate-row" key={row.token}>
+                      <span>{row.token}</span>
+                      <span>TF {row.tf}</span>
+                      <span>DF {row.df}</span>
+                      <span>{(row.document_coverage * 100).toFixed(1)}%</span>
+                      <button
+                        className="text-button"
+                        onClick={() => addCandidate(row.token)}
+                      >
+                        加入项目停用词
+                      </button>
+                      <button
+                        className="text-button"
+                        onClick={() => keepStopword(row.token)}
+                      >
+                        保留
+                      </button>
+                      <button
+                        className="text-button"
+                        onClick={() =>
+                          setIgnoredCandidates((current) => [
+                            ...current,
+                            row.token,
+                          ])
+                        }
+                      >
+                        忽略
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            )}
             <div className="frequency-table-wrap">
               <table className="frequency-table">
                 <thead>
@@ -936,18 +1314,34 @@ function App() {
                     <th>DF</th>
                     <th>文档覆盖率</th>
                     <th>每万词频率</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {frequency.rows.slice(0, 100).map((row) => (
-                    <tr key={row.token}>
-                      <td>{row.token}</td>
-                      <td>{row.tf}</td>
-                      <td>{row.df}</td>
-                      <td>{(row.document_coverage * 100).toFixed(1)}%</td>
-                      <td>{row.rf10k.toFixed(2)}</td>
-                    </tr>
-                  ))}
+                  {[...frequency.rows]
+                    .sort((a, b) =>
+                      sortKey === "token"
+                        ? a.token.localeCompare(b.token, "zh")
+                        : Number(b[sortKey]) - Number(a[sortKey]),
+                    )
+                    .slice(0, topN === "all" ? undefined : Number(topN))
+                    .map((row) => (
+                      <tr key={row.token}>
+                        <td>{row.token}</td>
+                        <td>{row.tf}</td>
+                        <td>{row.df}</td>
+                        <td>{(row.document_coverage * 100).toFixed(1)}%</td>
+                        <td>{row.rf10k.toFixed(2)}</td>
+                        <td>
+                          <button
+                            className="text-button"
+                            onClick={() => addCandidate(row.token)}
+                          >
+                            加入停用词
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

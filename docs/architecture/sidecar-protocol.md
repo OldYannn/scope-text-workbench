@@ -2,7 +2,7 @@
 
 ## 状态与范围
 
-本文定义桌面壳与 Python 分析引擎之间的 `0.1` 开发协议。目前覆盖 diagnostic（技术诊断）、项目创建/打开、TXT 导入和原始文本读取，不定义文本清洗或研究分析行为。
+本文定义桌面壳与 Python 分析引擎之间的 `0.1` 开发协议。目前覆盖项目、清洗、分词、停用词 profile、词频分析与导出。
 
 传输格式为 UTF-8 NDJSON（Newline-Delimited JSON，每行一个完整 JSON 对象）。桌面壳把请求写入分析引擎的标准输入；分析引擎把协议消息写入标准输出，把供开发者阅读的诊断信息写入标准错误。
 
@@ -118,6 +118,18 @@
 ### `text.tokenize.preview` / `text.tokenize.execute`
 
 `params` 包含 `project_path`、`document_id` 和 `{mode, hmm, dictionary_id}`。两种方法都只读取文档的 `analysis_text`；未生成分析文本时返回 `analysis_text_missing`，不会回退到 `text`。`execute` 保存结构化 `tokens` 数组和 tokenizer manifest，记录 jieba 版本、模式、HMM、输入 hash、用户词典 hash、实现版本和执行时间。
+
+### `stopwords.profiles` / `stopwords.get` / `stopwords.resolve` / `stopwords.import`
+
+桌面端可以读取内置 profile、读取项目当前 resolved profile、保存 `base_profile_id`、`custom_additions`、`custom_exclusions`，以及导入 UTF-8 TXT。profile 变化只使 frequency result 失效，不修改 token sequence。
+
+### `frequency.analyze`
+
+`params` 包含 `project_path` 和可选 `profile_config`。profile_config 明确传递 base profile、extension profiles（当前为空）和 custom additions/exclusions。返回 TF、DF、Coverage、RF10K、raw/eligible/effective token count 及 manifest。
+
+### `frequency.export`
+
+`params` 包含项目路径、系统保存选择器批准的 `destination` 和 `format`（`csv` 或 `xlsx`）。导出使用已保存且仍有效的 frequency result，不重新计算或替换 profile。
 
 ## 错误代码
 

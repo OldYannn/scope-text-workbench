@@ -34,4 +34,4 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
 
 [tool.setuptools.package-data]
-scope_engine = ["resources/stopwords/*.txt", "resources/stopwords/*.tsv", "resources/stopwords/*.md"]
+scope_engine = ["resources/stopwords/*.txt", "resources/stopwords/*.tsv", "resources/stopwords/*.md", "resources/stopwords/*.json", "resources/stopwords/upstream/*.txt"]

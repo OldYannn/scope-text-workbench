@@ -326,7 +326,12 @@ def handle_request(request: Any) -> dict[str, Any] | None:
                 request_id, import_project_stopwords(params["project_path"], params["file_path"])
             )
         if request["method"] == "frequency.analyze":
-            return result_response(request_id, frequency_execute(request["params"]["project_path"]))
+            return result_response(
+                request_id,
+                frequency_execute(
+                    request["params"]["project_path"], request["params"].get("profile_config")
+                ),
+            )
         if request["method"] == "frequency.latest":
             return result_response(
                 request_id, {"analysis": frequency_latest(request["params"]["project_path"])}

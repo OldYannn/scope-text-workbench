@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -10,15 +11,18 @@ SCOPE_PROFILE_ID = "scope-cn-general-v1"
 SCOPE_PROFILE_VERSION = "1"
 
 PROFILE_FILES = {
-    "none": None,
     SCOPE_PROFILE_ID: "scope-cn-general-v1.txt",
+    "none": None,
     "goto456-general": "goto456-general.txt",
     "hit": "hit.txt",
     "baidu": "baidu.txt",
     "scu": "scu.txt",
+    "project-custom": None,
 }
+PROFILE_METADATA_PATH = RESOURCE_DIR / "profiles.json"
 PROFILE_LABELS = {
     "none": "不使用停用词",
+    "project-custom": "项目自定义",
     SCOPE_PROFILE_ID: "SCOPE 中文通用停用词表 v1",
     "goto456-general": "goto456 中文通用停用词表",
     "hit": "哈工大停用词表",
@@ -39,6 +43,11 @@ def _read_words(filename: str | None) -> set[str]:
 
 
 def available_profiles() -> list[dict[str, Any]]:
+    metadata = (
+        json.loads(PROFILE_METADATA_PATH.read_text(encoding="utf-8"))
+        if PROFILE_METADATA_PATH.exists()
+        else {}
+    )
     return [
         {
             "profile_id": profile_id,
@@ -46,6 +55,8 @@ def available_profiles() -> list[dict[str, Any]]:
             "label": PROFILE_LABELS[profile_id],
             "hash": resolved_hash(_read_words(filename)),
             "count": len(_read_words(filename)),
+            "status": "draft" if profile_id == SCOPE_PROFILE_ID else "reference",
+            "source": metadata.get(profile_id, {}),
         }
         for profile_id, filename in PROFILE_FILES.items()
     ]
@@ -78,6 +89,7 @@ def resolve_stopwords(
         "custom_exclusions": sorted(exclusions_set),
         "resolved_stopwords": sorted(resolved),
         "resolved_stopword_hash": resolved_hash(resolved),
+        "status": "draft" if base_profile_id == SCOPE_PROFILE_ID else "reference",
     }
 
 
@@ -95,6 +107,18 @@ def import_stopword_file(project_path: Path, source_path: str) -> dict[str, Any]
         destination.write_bytes(data)
     words = sorted({line.strip() for line in text.splitlines() if line.strip()})
     return {"path": str(destination.relative_to(project_path)), "hash": file_hash, "words": words}
+
+
+def duplicate_lines(filename: str) -> list[str]:
+    lines = (RESOURCE_DIR / filename).read_text(encoding="utf-8").splitlines()
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for line in lines:
+        word = line.strip()
+        if word and word in seen:
+            duplicates.append(word)
+        seen.add(word)
+    return duplicates
 
 
 def is_eligible_token(token: str) -> bool:
