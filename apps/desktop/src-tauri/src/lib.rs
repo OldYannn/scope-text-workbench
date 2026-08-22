@@ -314,6 +314,64 @@ async fn document_get(
     .await
 }
 
+async fn text_clean(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    document_id: String,
+    rules: Value,
+    method: &'static str,
+) -> Result<Value, String> {
+    approved.require_project(&project_path)?;
+    dispatch(&supervisor, None, json!({
+        "protocol_version": "0.1", "request_id": request_id,
+        "method": method, "params": {"project_path": project_path, "document_id": document_id, "rules": rules}
+    })).await
+}
+
+#[tauri::command]
+async fn text_clean_preview(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    document_id: String,
+    rules: Value,
+) -> Result<Value, String> {
+    text_clean(
+        supervisor,
+        approved,
+        request_id,
+        project_path,
+        document_id,
+        rules,
+        "text.clean.preview",
+    )
+    .await
+}
+
+#[tauri::command]
+async fn text_clean_execute(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    document_id: String,
+    rules: Value,
+) -> Result<Value, String> {
+    text_clean(
+        supervisor,
+        approved,
+        request_id,
+        project_path,
+        document_id,
+        rules,
+        "text.clean.execute",
+    )
+    .await
+}
+
 #[tauri::command]
 async fn select_project_parent(
     app: tauri::AppHandle,
@@ -339,7 +397,7 @@ async fn select_project_folder(
 ) -> Result<Option<String>, String> {
     app.dialog()
         .file()
-        .set_title("选择 SCOPE 项目文件夹")
+        .set_title("选择 SCOPE 项目文件夹（请选择包含 project.json 的项目根目录）")
         .blocking_pick_folder()
         .map(|selected| {
             selected
@@ -407,6 +465,8 @@ pub fn run() {
         project_open,
         corpus_import_txt,
         document_get,
+        text_clean_preview,
+        text_clean_execute,
         select_project_parent,
         select_project_folder,
         select_txt_files,
@@ -423,6 +483,8 @@ pub fn run() {
         project_open,
         corpus_import_txt,
         document_get,
+        text_clean_preview,
+        text_clean_execute,
         select_project_parent,
         select_project_folder,
         select_txt_files

@@ -13,6 +13,8 @@ from scope_engine.project_store import (
     get_document,
     import_txt,
     open_project,
+    clean_preview,
+    clean_execute,
 )
 
 PROTOCOL_VERSION = "0.1"
@@ -21,6 +23,8 @@ CAPABILITIES = [
     "diagnostic.crash",
     "diagnostic.run",
     "document.get",
+    "text.clean.preview",
+    "text.clean.execute",
     "project.create",
     "project.open",
     "request.cancel",
@@ -259,6 +263,12 @@ def handle_request(request: Any) -> dict[str, Any] | None:
                 request_id,
                 get_document(params["project_path"], params["document_id"]),
             )
+        if request["method"] in ("text.clean.preview", "text.clean.execute"):
+            params = request["params"]
+            if not {"project_path", "document_id", "rules"}.issubset(params):
+                raise ProjectError("invalid_params", "text cleaning requires project_path, document_id, and rules")
+            cleaner = clean_preview if request["method"] == "text.clean.preview" else clean_execute
+            return result_response(request_id, cleaner(params["project_path"], params["document_id"], params["rules"]))
     except ProjectError as error:
         return error_response(error.code, error.message, request_id=request_id)
     if request["method"] == "diagnostic.run":

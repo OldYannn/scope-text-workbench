@@ -150,6 +150,8 @@ class SidecarProtocolContractTest(unittest.TestCase):
                         "diagnostic.crash",
                         "diagnostic.run",
                         "document.get",
+                        "text.clean.preview",
+                        "text.clean.execute",
                         "project.create",
                         "project.open",
                         "request.cancel",

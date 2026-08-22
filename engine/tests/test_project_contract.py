@@ -238,6 +238,31 @@ class ProjectProtocolContractTest(unittest.TestCase):
             )
             self.assertEqual(response["result"]["project"]["document_count"], 0)
 
+    def test_opening_internal_directory_explains_project_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project = self.create_project(Path(temporary_directory), "基层治理访谈")["project"]
+            response = request("project.open", {"project_path": str(Path(project["project_path"]) / "corpus")}, "open-corpus")
+            self.assertEqual(response["type"], "error")
+            self.assertEqual(response["error"]["code"], "project_subdirectory")
+            self.assertIn("基层治理访谈", response["error"]["message"])
+
+    def test_cleaning_preserves_original_and_restores_analysis_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            source = Path(temporary_directory) / "清洗.txt"
+            source.write_bytes((FIXTURES.parent / "cleaning/sample.txt").read_bytes())
+            project_path = self.create_project(Path(temporary_directory))["project"]["project_path"]
+            imported = request("corpus.import_txt", {"project_path": project_path, "file_paths": [str(source)]}, "clean-import")
+            document = imported["result"]["entries"][0]["document"]
+            rules = {"normalize_whitespace": True, "normalize_newlines": True, "remove_urls": True, "strip_html": True, "punctuation_mode": "remove"}
+            preview = request("text.clean.preview", {"project_path": project_path, "document_id": document["document_id"], "rules": rules}, "clean-preview")
+            self.assertEqual(preview["result"]["analysis_text"], "中文 标签\n第二行")
+            executed = request("text.clean.execute", {"project_path": project_path, "document_id": document["document_id"], "rules": rules}, "clean-execute")
+            self.assertEqual(executed["result"]["analysis_text"], preview["result"]["analysis_text"])
+            reopened = request("document.get", {"project_path": project_path, "document_id": document["document_id"]}, "clean-reopen")
+            self.assertEqual(reopened["result"]["document"]["text"], "  中文  https://example.com  <b>标签</b>\n第二行！  \n")
+            self.assertEqual(reopened["result"]["document"]["analysis_text"], "中文 标签\n第二行")
+            self.assertEqual(reopened["result"]["document"]["cleaning_config"], rules)
+
 
 if __name__ == "__main__":
     unittest.main()

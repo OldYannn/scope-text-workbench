@@ -2,6 +2,8 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{BufRead, BufReader, Write};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 #[cfg(any(debug_assertions, test))]
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -188,6 +190,8 @@ impl EngineSupervisor {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
         let mut child = command.spawn().map_err(|error| {
             SupervisorError(format!(
                 "cannot start Python engine '{}': {error}",

@@ -27,7 +27,19 @@ type DocumentSummary = {
   import_status: "imported" | "empty";
 };
 
-type DocumentDetail = DocumentSummary & { text: string };
+type CleaningRules = {
+  normalize_whitespace: boolean;
+  normalize_newlines: boolean;
+  remove_urls: boolean;
+  strip_html: boolean;
+  punctuation_mode: "keep" | "remove";
+};
+
+type DocumentDetail = DocumentSummary & {
+  text: string;
+  analysis_text?: string | null;
+  cleaning_config?: CleaningRules | null;
+};
 
 type EngineMessage<T> = {
   type: "result" | "error";
@@ -69,6 +81,7 @@ const errorMessages: Record<string, string> = {
   project_already_exists: "该位置已经有同名文件夹，请更换项目名称",
   project_create_failed: "无法在所选位置创建项目",
   invalid_project: "所选文件夹不是可读取的 SCOPE 项目",
+  project_subdirectory: "检测到上一级文件夹可能是 SCOPE 项目，请选择提示中的项目文件夹",
   unsupported_project_version: "该项目由不兼容的 SCOPE 版本创建",
   unsupported_format: "当前版本只支持 TXT 文件",
   unsupported_encoding: "文件不是 UTF-8 编码，请转换为 UTF-8 后重试",
@@ -119,6 +132,14 @@ function App() {
   const [e2ePaths, setE2ePaths] = useState<E2ePaths>(null);
   const [desktopReady, setDesktopReady] = useState(!desktopRuntime);
   const [importIssues, setImportIssues] = useState<ImportIssue[]>([]);
+  const [cleaningRules, setCleaningRules] = useState<CleaningRules>({
+    normalize_whitespace: true,
+    normalize_newlines: true,
+    remove_urls: true,
+    strip_html: true,
+    punctuation_mode: "keep",
+  });
+  const [cleaningPreview, setCleaningPreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (!desktopRuntime) return;
@@ -163,6 +184,7 @@ function App() {
   async function openProject() {
     if (busy || !desktopRuntime) return;
     setBusy(true);
+    setNotice("请选择 SCOPE 项目文件夹，例如“基层治理访谈”；有效项目文件夹中包含 project.json。请不要进入 corpus 等内部子目录。\n");
     try {
       const projectPath = await invoke<string | null>("select_project_folder");
       if (typeof projectPath !== "string") return;
@@ -277,12 +299,51 @@ function App() {
         return;
       }
       setSelectedDocument(message.result.document);
+      setCleaningRules(message.result.document.cleaning_config ?? cleaningRules);
+      setCleaningPreview(null);
       setNotice("正在查看保存在项目中的原始文本");
     } catch (error) {
       setNotice(`无法查看文本：${String(error)}`);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function previewCleaning() {
+    if (!project || !selectedDocument || busy) return;
+    setBusy(true);
+    try {
+      const message = await invoke<EngineMessage<{ analysis_text: string }>>("text_clean_preview", {
+        requestId: requestId("clean-preview"), projectPath: project.project_path,
+        documentId: selectedDocument.document_id, rules: cleaningRules,
+      });
+      if (message.type === "error" || !message.result) {
+        setNotice(`无法预览清洗：${engineError(message, "未知错误")}`);
+        return;
+      }
+      setCleaningPreview(message.result.analysis_text);
+      setNotice("预览已更新，原始文本不会修改");
+    } catch (error) { setNotice(`无法预览清洗：${String(error)}`); }
+    finally { setBusy(false); }
+  }
+
+  async function executeCleaning() {
+    if (!project || !selectedDocument || busy) return;
+    setBusy(true);
+    try {
+      const message = await invoke<EngineMessage<{ analysis_text: string }>>("text_clean_execute", {
+        requestId: requestId("clean-execute"), projectPath: project.project_path,
+        documentId: selectedDocument.document_id, rules: cleaningRules,
+      });
+      if (message.type === "error" || !message.result) {
+        setNotice(`无法执行清洗：${engineError(message, "未知错误")}`);
+        return;
+      }
+      setSelectedDocument((current) => current ? { ...current, analysis_text: message.result?.analysis_text ?? null, cleaning_config: cleaningRules } : current);
+      setCleaningPreview(message.result.analysis_text);
+      setNotice("清洗已保存为分析文本，原始语料未修改");
+    } catch (error) { setNotice(`无法执行清洗：${String(error)}`); }
+    finally { setBusy(false); }
   }
 
   function closeProject() {
@@ -497,9 +558,22 @@ function App() {
             )}
           </div>
           {selectedDocument ? (
-            <pre className="text-preview">
-              {selectedDocument.text || "（空文件）"}
-            </pre>
+            <>
+              <div className="cleaning-toolbar" aria-label="文本清洗">
+                <strong>文本清洗</strong>
+                {(Object.entries(cleaningRules) as [keyof CleaningRules, boolean | string][]).filter(([key]) => key !== "punctuation_mode").map(([key, value]) => (
+                  <label key={key}><input type="checkbox" checked={Boolean(value)} onChange={(event) => setCleaningRules((current) => ({ ...current, [key]: event.target.checked }))} />{({ normalize_whitespace: "空白规范化", normalize_newlines: "换行规范化", remove_urls: "删除 URL", strip_html: "清理 HTML" } as Record<string, string>)[key]}</label>
+                ))}
+                <label>标点<select value={cleaningRules.punctuation_mode} onChange={(event) => setCleaningRules((current) => ({ ...current, punctuation_mode: event.target.value as "keep" | "remove" }))}><option value="keep">保留</option><option value="remove">删除</option></select></label>
+                <button className="text-button" onClick={() => void previewCleaning()} disabled={busy}>预览</button>
+                <button className="primary-button" onClick={() => void executeCleaning()} disabled={busy}>执行清洗</button>
+              </div>
+              <p className="cleaning-note">清洗结果保存为分析文本，不会修改原始语料。</p>
+              <div className="text-preview-grid">
+                <div><small>原始文本（只读）</small><pre className="text-preview">{selectedDocument.text || "（空文件）"}</pre></div>
+                <div><small>分析文本</small><pre className="text-preview">{cleaningPreview ?? selectedDocument.analysis_text ?? "尚未执行清洗"}</pre></div>
+              </div>
+            </>
           ) : (
             <div className="preview-placeholder">
               <span aria-hidden="true">Aa</span>

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import sqlite3
 import tempfile
@@ -14,7 +15,7 @@ from typing import Any
 from scope_engine import __version__
 
 PROJECT_FORMAT_VERSION = 1
-DATABASE_SCHEMA_VERSION = 1
+DATABASE_SCHEMA_VERSION = 2
 PROJECT_METADATA_FILENAME = "project.json"
 DATABASE_FILENAME = "scope.db"
 INVALID_WINDOWS_FILENAME_CHARACTERS = frozenset('<>:"/\\|?*')
@@ -92,6 +93,10 @@ def _initialize_database(project_path: Path) -> None:
                 source_path TEXT NOT NULL,
                 imported_at TEXT NOT NULL,
                 text TEXT NOT NULL,
+                analysis_text TEXT,
+                cleaning_config_json TEXT,
+                cleaning_manifest_json TEXT,
+                cleaned_at TEXT,
                 character_count INTEGER NOT NULL CHECK (character_count >= 0),
                 file_size INTEGER NOT NULL CHECK (file_size >= 0),
                 input_hash TEXT NOT NULL UNIQUE,
@@ -133,11 +138,23 @@ def _load_metadata(project_path: Path) -> dict[str, Any]:
     try:
         with _connect(project_path) as connection:
             schema_version = connection.execute("PRAGMA user_version").fetchone()[0]
+            if schema_version == 1:
+                connection.executescript(
+                    """
+                    ALTER TABLE documents ADD COLUMN analysis_text TEXT;
+                    ALTER TABLE documents ADD COLUMN cleaning_config_json TEXT;
+                    ALTER TABLE documents ADD COLUMN cleaning_manifest_json TEXT;
+                    ALTER TABLE documents ADD COLUMN cleaned_at TEXT;
+                    """
+                )
+                connection.execute(f"PRAGMA user_version = {DATABASE_SCHEMA_VERSION}")
+                connection.commit()
+                schema_version = DATABASE_SCHEMA_VERSION
     except sqlite3.Error as error:
         raise ProjectError(
             "invalid_project", "The SCOPE project database cannot be opened"
         ) from error
-    if schema_version != DATABASE_SCHEMA_VERSION:
+    if schema_version not in (DATABASE_SCHEMA_VERSION,):
         raise ProjectError(
             "unsupported_project_version", "This SCOPE database version is not supported"
         )
@@ -229,7 +246,21 @@ def open_project(project_path_value: object) -> dict[str, Any]:
     if not isinstance(project_path_value, str) or not project_path_value:
         raise ProjectError("invalid_params", "project_path must be a non-empty string")
     project_path = Path(project_path_value).expanduser().resolve()
-    metadata = _load_metadata(project_path)
+    try:
+        metadata = _load_metadata(project_path)
+    except ProjectError as error:
+        if error.code == "invalid_project" and not (project_path / PROJECT_METADATA_FILENAME).is_file():
+            parent = project_path.parent
+            try:
+                parent_metadata = _load_metadata(parent)
+            except ProjectError:
+                pass
+            else:
+                raise ProjectError(
+                    "project_subdirectory",
+                    f"检测到上一级文件夹可能是 SCOPE 项目，请选择“{parent_metadata['name']}”项目文件夹。",
+                ) from error
+        raise
     try:
         with _connect(project_path) as connection:
             rows = connection.execute(
@@ -418,7 +449,8 @@ def get_document(project_path_value: object, document_id: object) -> dict[str, A
             row = connection.execute(
                 """
                 SELECT document_id, original_filename, source_path, imported_at,
-                       text, character_count, file_size, input_hash, file_format,
+                       text, analysis_text, cleaning_config_json, cleaning_manifest_json,
+                       cleaned_at, character_count, file_size, input_hash, file_format,
                        encoding, import_status
                 FROM documents WHERE document_id = ?
                 """,
@@ -432,4 +464,69 @@ def get_document(project_path_value: object, document_id: object) -> dict[str, A
         raise ProjectError("document_not_found", "The selected document is not in this project")
     document = _document_summary(row)
     document["text"] = row["text"]
+    document["analysis_text"] = row["analysis_text"]
+    document["cleaning_config"] = json.loads(row["cleaning_config_json"]) if row["cleaning_config_json"] else None
+    document["cleaning_manifest"] = json.loads(row["cleaning_manifest_json"]) if row["cleaning_manifest_json"] else None
+    document["cleaned_at"] = row["cleaned_at"]
     return {"document": document}
+
+
+CLEANING_IMPLEMENTATION_VERSION = "1"
+DEFAULT_CLEANING_RULES = {
+    "normalize_whitespace": True,
+    "normalize_newlines": True,
+    "remove_urls": True,
+    "strip_html": True,
+    "punctuation_mode": "keep",
+}
+URL_PATTERN = re.compile(r"https?://[^\s<>]+|www\.[^\s<>]+", re.IGNORECASE)
+HTML_TAG_PATTERN = re.compile(r"<[^>]*>")
+
+
+def _clean_text(text: str, rules: dict[str, Any]) -> str:
+    config = {**DEFAULT_CLEANING_RULES, **rules}
+    value = text.replace("\r\n", "\n").replace("\r", "\n") if config["normalize_newlines"] else text
+    if config["strip_html"]:
+        value = HTML_TAG_PATTERN.sub("", value)
+    if config["remove_urls"]:
+        value = URL_PATTERN.sub("", value)
+    if config["normalize_whitespace"]:
+        value = re.sub(r"[ \t\f\v]+", " ", value)
+        value = re.sub(r" *\n *", "\n", value)
+        value = value.strip()
+    if config.get("punctuation_mode") == "remove":
+        import unicodedata
+        value = "".join(char for char in value if not unicodedata.category(char).startswith("P"))
+    return value
+
+
+def clean_preview(project_path_value: object, document_id: object, rules: object) -> dict[str, Any]:
+    if not isinstance(rules, dict):
+        raise ProjectError("invalid_params", "clean.preview requires a rules object")
+    project_path = Path(str(project_path_value)).expanduser().resolve()
+    _load_metadata(project_path)
+    with _connect(project_path) as connection:
+        row = connection.execute("SELECT text, input_hash FROM documents WHERE document_id = ?", (document_id,)).fetchone()
+    if row is None:
+        raise ProjectError("document_not_found", "The selected document is not in this project")
+    normalized_rules = {**DEFAULT_CLEANING_RULES, **rules}
+    cleaned = _clean_text(row["text"], normalized_rules)
+    return {"original_text": row["text"], "analysis_text": cleaned, "rules": normalized_rules,
+            "input_hash": row["input_hash"], "implementation_version": CLEANING_IMPLEMENTATION_VERSION}
+
+
+def clean_execute(project_path_value: object, document_id: object, rules: object) -> dict[str, Any]:
+    preview = clean_preview(project_path_value, document_id, rules)
+    project_path = Path(str(project_path_value)).expanduser().resolve()
+    cleaned_at = utc_now()
+    manifest = {"operation": "text.clean", "implementation_version": CLEANING_IMPLEMENTATION_VERSION,
+                "input_hashes": [preview["input_hash"]], "rules": preview["rules"],
+                "parameters": {}, "executed_at": cleaned_at, "network_used": False,
+                "original_analysis_relation": "analysis_text is derived from immutable original text"}
+    with _connect(project_path) as connection:
+        connection.execute("UPDATE documents SET analysis_text = ?, cleaning_config_json = ?, cleaning_manifest_json = ?, cleaned_at = ? WHERE document_id = ?",
+                           (preview["analysis_text"], json.dumps(preview["rules"], ensure_ascii=False), json.dumps(manifest, ensure_ascii=False), cleaned_at, document_id))
+        connection.execute("INSERT INTO audit_events (event_id, event_type, created_at, manifest_json) VALUES (?, ?, ?, ?)",
+                           (str(uuid.uuid4()), "text.clean", cleaned_at, json.dumps(manifest, ensure_ascii=False)))
+        connection.commit()
+    return {**preview, "cleaned_at": cleaned_at, "cleaning_manifest": manifest}
