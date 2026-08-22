@@ -15,7 +15,7 @@ from typing import Any
 from scope_engine import __version__
 
 PROJECT_FORMAT_VERSION = 1
-DATABASE_SCHEMA_VERSION = 2
+DATABASE_SCHEMA_VERSION = 3
 PROJECT_METADATA_FILENAME = "project.json"
 DATABASE_FILENAME = "scope.db"
 INVALID_WINDOWS_FILENAME_CHARACTERS = frozenset('<>:"/\\|?*')
@@ -97,6 +97,8 @@ def _initialize_database(project_path: Path) -> None:
                 cleaning_config_json TEXT,
                 cleaning_manifest_json TEXT,
                 cleaned_at TEXT,
+                tokenization_manifest_json TEXT,
+                tokens_json TEXT,
                 character_count INTEGER NOT NULL CHECK (character_count >= 0),
                 file_size INTEGER NOT NULL CHECK (file_size >= 0),
                 input_hash TEXT NOT NULL UNIQUE,
@@ -111,6 +113,15 @@ def _initialize_database(project_path: Path) -> None:
                 event_type TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 manifest_json TEXT NOT NULL
+            );
+
+            CREATE TABLE user_dictionaries (
+                dictionary_id TEXT PRIMARY KEY,
+                original_filename TEXT NOT NULL,
+                stored_path TEXT NOT NULL UNIQUE,
+                imported_at TEXT NOT NULL,
+                file_hash TEXT NOT NULL UNIQUE,
+                file_size INTEGER NOT NULL CHECK (file_size >= 0)
             );
             """
         )
@@ -147,6 +158,24 @@ def _load_metadata(project_path: Path) -> dict[str, Any]:
                     ALTER TABLE documents ADD COLUMN cleaned_at TEXT;
                     """
                 )
+                connection.execute("PRAGMA user_version = 2")
+                connection.commit()
+                schema_version = 2
+            if schema_version == 2:
+                connection.execute(
+                    "ALTER TABLE documents ADD COLUMN tokenization_manifest_json TEXT"
+                )
+                connection.execute("ALTER TABLE documents ADD COLUMN tokens_json TEXT")
+                connection.execute("""
+                    CREATE TABLE IF NOT EXISTS user_dictionaries (
+                        dictionary_id TEXT PRIMARY KEY,
+                        original_filename TEXT NOT NULL,
+                        stored_path TEXT NOT NULL UNIQUE,
+                        imported_at TEXT NOT NULL,
+                        file_hash TEXT NOT NULL UNIQUE,
+                        file_size INTEGER NOT NULL CHECK (file_size >= 0)
+                    )
+                """)
                 connection.execute(f"PRAGMA user_version = {DATABASE_SCHEMA_VERSION}")
                 connection.commit()
                 schema_version = DATABASE_SCHEMA_VERSION
@@ -249,7 +278,10 @@ def open_project(project_path_value: object) -> dict[str, Any]:
     try:
         metadata = _load_metadata(project_path)
     except ProjectError as error:
-        if error.code == "invalid_project" and not (project_path / PROJECT_METADATA_FILENAME).is_file():
+        if (
+            error.code == "invalid_project"
+            and not (project_path / PROJECT_METADATA_FILENAME).is_file()
+        ):
             parent = project_path.parent
             try:
                 parent_metadata = _load_metadata(parent)
@@ -450,7 +482,8 @@ def get_document(project_path_value: object, document_id: object) -> dict[str, A
                 """
                 SELECT document_id, original_filename, source_path, imported_at,
                        text, analysis_text, cleaning_config_json, cleaning_manifest_json,
-                       cleaned_at, character_count, file_size, input_hash, file_format,
+                       cleaned_at, tokenization_manifest_json, tokens_json,
+                       character_count, file_size, input_hash, file_format,
                        encoding, import_status
                 FROM documents WHERE document_id = ?
                 """,
@@ -465,9 +498,17 @@ def get_document(project_path_value: object, document_id: object) -> dict[str, A
     document = _document_summary(row)
     document["text"] = row["text"]
     document["analysis_text"] = row["analysis_text"]
-    document["cleaning_config"] = json.loads(row["cleaning_config_json"]) if row["cleaning_config_json"] else None
-    document["cleaning_manifest"] = json.loads(row["cleaning_manifest_json"]) if row["cleaning_manifest_json"] else None
+    document["cleaning_config"] = (
+        json.loads(row["cleaning_config_json"]) if row["cleaning_config_json"] else None
+    )
+    document["cleaning_manifest"] = (
+        json.loads(row["cleaning_manifest_json"]) if row["cleaning_manifest_json"] else None
+    )
     document["cleaned_at"] = row["cleaned_at"]
+    document["tokenization_manifest"] = (
+        json.loads(row["tokenization_manifest_json"]) if row["tokenization_manifest_json"] else None
+    )
+    document["tokens"] = json.loads(row["tokens_json"]) if row["tokens_json"] else None
     return {"document": document}
 
 
@@ -496,6 +537,7 @@ def _clean_text(text: str, rules: dict[str, Any]) -> str:
         value = value.strip()
     if config.get("punctuation_mode") == "remove":
         import unicodedata
+
         value = "".join(char for char in value if not unicodedata.category(char).startswith("P"))
     return value
 
@@ -506,27 +548,232 @@ def clean_preview(project_path_value: object, document_id: object, rules: object
     project_path = Path(str(project_path_value)).expanduser().resolve()
     _load_metadata(project_path)
     with _connect(project_path) as connection:
-        row = connection.execute("SELECT text, input_hash FROM documents WHERE document_id = ?", (document_id,)).fetchone()
+        row = connection.execute(
+            "SELECT text, input_hash FROM documents WHERE document_id = ?", (document_id,)
+        ).fetchone()
     if row is None:
         raise ProjectError("document_not_found", "The selected document is not in this project")
     normalized_rules = {**DEFAULT_CLEANING_RULES, **rules}
     cleaned = _clean_text(row["text"], normalized_rules)
-    return {"original_text": row["text"], "analysis_text": cleaned, "rules": normalized_rules,
-            "input_hash": row["input_hash"], "implementation_version": CLEANING_IMPLEMENTATION_VERSION}
+    return {
+        "original_text": row["text"],
+        "analysis_text": cleaned,
+        "rules": normalized_rules,
+        "input_hash": row["input_hash"],
+        "implementation_version": CLEANING_IMPLEMENTATION_VERSION,
+    }
 
 
 def clean_execute(project_path_value: object, document_id: object, rules: object) -> dict[str, Any]:
     preview = clean_preview(project_path_value, document_id, rules)
     project_path = Path(str(project_path_value)).expanduser().resolve()
     cleaned_at = utc_now()
-    manifest = {"operation": "text.clean", "implementation_version": CLEANING_IMPLEMENTATION_VERSION,
-                "input_hashes": [preview["input_hash"]], "rules": preview["rules"],
-                "parameters": {}, "executed_at": cleaned_at, "network_used": False,
-                "original_analysis_relation": "analysis_text is derived from immutable original text"}
+    manifest = {
+        "operation": "text.clean",
+        "implementation_version": CLEANING_IMPLEMENTATION_VERSION,
+        "input_hashes": [preview["input_hash"]],
+        "rules": preview["rules"],
+        "parameters": {},
+        "executed_at": cleaned_at,
+        "network_used": False,
+        "original_analysis_relation": "analysis_text is derived from immutable original text",
+    }
     with _connect(project_path) as connection:
-        connection.execute("UPDATE documents SET analysis_text = ?, cleaning_config_json = ?, cleaning_manifest_json = ?, cleaned_at = ? WHERE document_id = ?",
-                           (preview["analysis_text"], json.dumps(preview["rules"], ensure_ascii=False), json.dumps(manifest, ensure_ascii=False), cleaned_at, document_id))
-        connection.execute("INSERT INTO audit_events (event_id, event_type, created_at, manifest_json) VALUES (?, ?, ?, ?)",
-                           (str(uuid.uuid4()), "text.clean", cleaned_at, json.dumps(manifest, ensure_ascii=False)))
+        connection.execute(
+            "UPDATE documents SET analysis_text = ?, cleaning_config_json = ?, cleaning_manifest_json = ?, cleaned_at = ? WHERE document_id = ?",
+            (
+                preview["analysis_text"],
+                json.dumps(preview["rules"], ensure_ascii=False),
+                json.dumps(manifest, ensure_ascii=False),
+                cleaned_at,
+                document_id,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO audit_events (event_id, event_type, created_at, manifest_json) VALUES (?, ?, ?, ?)",
+            (str(uuid.uuid4()), "text.clean", cleaned_at, json.dumps(manifest, ensure_ascii=False)),
+        )
         connection.commit()
     return {**preview, "cleaned_at": cleaned_at, "cleaning_manifest": manifest}
+
+
+TOKENIZATION_IMPLEMENTATION_VERSION = "1"
+TOKENIZER_ENGINE = "jieba"
+TOKENIZER_VERSION = "0.42.1"
+DEFAULT_TOKENIZATION_CONFIG = {"mode": "accurate", "hmm": True, "dictionary_id": None}
+
+
+def _dictionary_summary(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "dictionary_id": row["dictionary_id"],
+        "name": row["original_filename"],
+        "hash": row["file_hash"],
+        "file_size": row["file_size"],
+        "imported_at": row["imported_at"],
+    }
+
+
+def import_user_dictionary(project_path_value: object, source_value: object) -> dict[str, Any]:
+    if (
+        not isinstance(project_path_value, str)
+        or not isinstance(source_value, str)
+        or not source_value
+    ):
+        raise ProjectError(
+            "invalid_params", "user dictionary import requires project_path and file_path"
+        )
+    project_path = Path(project_path_value).expanduser().resolve()
+    metadata = _load_metadata(project_path)
+    source = Path(source_value).expanduser()
+    try:
+        data = source.read_bytes()
+        data.decode("utf-8-sig")
+    except (OSError, UnicodeDecodeError) as error:
+        raise ProjectError("dictionary_read_failed", "用户词典必须是可读取的 UTF-8 文本") from error
+    file_hash = hashlib.sha256(data).hexdigest()
+    with _connect(project_path) as connection:
+        duplicate = connection.execute(
+            "SELECT * FROM user_dictionaries WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+        if duplicate is not None:
+            return {"dictionary": _dictionary_summary(duplicate), "status": "existing"}
+        dictionary_id = str(uuid.uuid4())
+        stored_path = f"dictionaries/{dictionary_id}.txt"
+        stored = project_path / stored_path
+        stored.parent.mkdir(parents=True, exist_ok=True)
+        stored.write_bytes(data)
+        imported_at = utc_now()
+        connection.execute(
+            "INSERT INTO user_dictionaries VALUES (?, ?, ?, ?, ?, ?)",
+            (dictionary_id, source.name, stored_path, imported_at, file_hash, len(data)),
+        )
+        # A changed dictionary invalidates prior token results; they must be rerun explicitly.
+        connection.execute(
+            "UPDATE documents SET tokens_json = NULL, tokenization_manifest_json = NULL"
+        )
+        manifest = {
+            "operation": "tokenization.dictionary_import",
+            "project_id": metadata["project_id"],
+            "dictionary_id": dictionary_id,
+            "file_hash": file_hash,
+            "imported_at": imported_at,
+            "network_used": False,
+        }
+        connection.execute(
+            "INSERT INTO audit_events VALUES (?, ?, ?, ?)",
+            (
+                str(uuid.uuid4()),
+                "tokenization.dictionary_import",
+                imported_at,
+                json.dumps(manifest, ensure_ascii=False),
+            ),
+        )
+        connection.commit()
+        row = connection.execute(
+            "SELECT * FROM user_dictionaries WHERE dictionary_id = ?", (dictionary_id,)
+        ).fetchone()
+    return {
+        "dictionary": _dictionary_summary(row),
+        "status": "imported",
+        "reproducibility_manifest": manifest,
+    }
+
+
+def _load_dictionary(project_path: Path, connection: sqlite3.Connection, dictionary_id: object):
+    if dictionary_id is None:
+        return None, None
+    if not isinstance(dictionary_id, str) or not dictionary_id:
+        raise ProjectError("invalid_params", "dictionary_id must be a string or null")
+    row = connection.execute(
+        "SELECT * FROM user_dictionaries WHERE dictionary_id = ?", (dictionary_id,)
+    ).fetchone()
+    if row is None:
+        raise ProjectError("dictionary_not_found", "项目中找不到该用户词典")
+    return project_path / row["stored_path"], row
+
+
+def _tokenize(
+    text: str, config: dict[str, Any], dictionary_path: Path | None
+) -> list[dict[str, Any]]:
+    import jieba
+
+    tokenizer = jieba.Tokenizer()
+    if dictionary_path is not None:
+        tokenizer.load_userdict(str(dictionary_path))
+    return [
+        {"index": index, "token": token}
+        for index, token in enumerate(tokenizer.cut(text, HMM=bool(config["hmm"])))
+        if token
+    ]
+
+
+def tokenize_preview(
+    project_path_value: object, document_id: object, config: object
+) -> dict[str, Any]:
+    if not isinstance(config, dict):
+        raise ProjectError("invalid_params", "tokenization requires a config object")
+    project_path = Path(str(project_path_value)).expanduser().resolve()
+    _load_metadata(project_path)
+    normalized = {**DEFAULT_TOKENIZATION_CONFIG, **config}
+    if normalized.get("mode") != "accurate":
+        raise ProjectError("unsupported_tokenization_mode", "当前版本只支持标准分词（精确模式）")
+    with _connect(project_path) as connection:
+        row = connection.execute(
+            "SELECT analysis_text, input_hash FROM documents WHERE document_id = ?", (document_id,)
+        ).fetchone()
+        if row is None:
+            raise ProjectError("document_not_found", "项目中找不到这篇文档")
+        if row["analysis_text"] is None:
+            raise ProjectError("analysis_text_missing", "该文档尚未生成分析文本，请先执行文本清洗")
+        dictionary_path, dictionary_row = _load_dictionary(
+            project_path, connection, normalized.get("dictionary_id")
+        )
+        tokens = _tokenize(row["analysis_text"], normalized, dictionary_path)
+    dictionary_hash = dictionary_row["file_hash"] if dictionary_row else None
+    manifest = {
+        "engine": TOKENIZER_ENGINE,
+        "engine_version": TOKENIZER_VERSION,
+        "mode": "accurate",
+        "hmm": bool(normalized["hmm"]),
+        "input_analysis_text_hash": hashlib.sha256(
+            row["analysis_text"].encode("utf-8")
+        ).hexdigest(),
+        "default_dictionary": {"identity": "jieba-default", "version": TOKENIZER_VERSION},
+        "user_dictionary": dictionary_row["original_filename"] if dictionary_row else "none",
+        "user_dictionary_id": dictionary_row["dictionary_id"] if dictionary_row else None,
+        "user_dictionary_hash": dictionary_hash,
+        "tokenization_implementation_version": TOKENIZATION_IMPLEMENTATION_VERSION,
+        "executed_at": utc_now(),
+        "network_used": False,
+    }
+    return {"tokens": tokens, "manifest": manifest, "config": normalized}
+
+
+def tokenize_execute(
+    project_path_value: object, document_id: object, config: object
+) -> dict[str, Any]:
+    preview = tokenize_preview(project_path_value, document_id, config)
+    project_path = Path(str(project_path_value)).expanduser().resolve()
+    executed_at = preview["manifest"]["executed_at"]
+    manifest = preview["manifest"]
+    manifest["executed_at"] = executed_at
+    with _connect(project_path) as connection:
+        connection.execute(
+            "UPDATE documents SET tokens_json = ?, tokenization_manifest_json = ? WHERE document_id = ?",
+            (
+                json.dumps(preview["tokens"], ensure_ascii=False),
+                json.dumps(manifest, ensure_ascii=False),
+                document_id,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO audit_events VALUES (?, ?, ?, ?)",
+            (
+                str(uuid.uuid4()),
+                "text.tokenize",
+                executed_at,
+                json.dumps(manifest, ensure_ascii=False),
+            ),
+        )
+        connection.commit()
+    return {**preview, "executed_at": executed_at}

@@ -111,6 +111,14 @@
 
 `params` 包含 `project_path` 和 `document_id`。返回已保存文档元数据及严格解码后的原始文本，用于本地预览。
 
+### `tokenization.dictionary.import`
+
+`params` 包含项目路径和用户选择的 UTF-8 词典文件路径。引擎把词典副本保存到项目 `dictionaries/`，返回词典 ID、名称、大小和 SHA-256；原始文件不会被修改。导入新词典会使已有 token 结果失效，必须明确重新运行。
+
+### `text.tokenize.preview` / `text.tokenize.execute`
+
+`params` 包含 `project_path`、`document_id` 和 `{mode, hmm, dictionary_id}`。两种方法都只读取文档的 `analysis_text`；未生成分析文本时返回 `analysis_text_missing`，不会回退到 `text`。`execute` 保存结构化 `tokens` 数组和 tokenizer manifest，记录 jieba 版本、模式、HMM、输入 hash、用户词典 hash、实现版本和执行时间。
+
 ## 错误代码
 
 | 代码 | 含义 |
@@ -133,6 +141,10 @@
 | `file_read_failed` | 文件不存在或无法读取 |
 | `import_failed` | 文件已读取，但无法安全保存到项目中 |
 | `document_not_found` | 项目中不存在指定文档 |
+| `analysis_text_missing` | 文档尚未生成分析文本，分词不会静默使用原始文本 |
+| `dictionary_read_failed` | 用户词典不可读取或不是 UTF-8 |
+| `dictionary_not_found` | 项目中不存在指定用户词典 |
+| `unsupported_tokenization_mode` | 当前版本不支持请求的分词模式 |
 
 如果无法恢复有效 `request_id`，分析引擎使用 `null`。损坏输入不能导致长期运行的分析引擎崩溃。
 

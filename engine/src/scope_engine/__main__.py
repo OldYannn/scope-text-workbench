@@ -9,12 +9,15 @@ from typing import Any
 from scope_engine import __version__
 from scope_engine.project_store import (
     ProjectError,
+    clean_execute,
+    clean_preview,
     create_project,
     get_document,
     import_txt,
+    import_user_dictionary,
     open_project,
-    clean_preview,
-    clean_execute,
+    tokenize_execute,
+    tokenize_preview,
 )
 
 PROTOCOL_VERSION = "0.1"
@@ -25,6 +28,9 @@ CAPABILITIES = [
     "document.get",
     "text.clean.preview",
     "text.clean.execute",
+    "text.tokenize.preview",
+    "text.tokenize.execute",
+    "tokenization.dictionary.import",
     "project.create",
     "project.open",
     "request.cancel",
@@ -266,9 +272,27 @@ def handle_request(request: Any) -> dict[str, Any] | None:
         if request["method"] in ("text.clean.preview", "text.clean.execute"):
             params = request["params"]
             if not {"project_path", "document_id", "rules"}.issubset(params):
-                raise ProjectError("invalid_params", "text cleaning requires project_path, document_id, and rules")
+                raise ProjectError(
+                    "invalid_params", "text cleaning requires project_path, document_id, and rules"
+                )
             cleaner = clean_preview if request["method"] == "text.clean.preview" else clean_execute
-            return result_response(request_id, cleaner(params["project_path"], params["document_id"], params["rules"]))
+            return result_response(
+                request_id, cleaner(params["project_path"], params["document_id"], params["rules"])
+            )
+        if request["method"] == "tokenization.dictionary.import":
+            params = request["params"]
+            return result_response(
+                request_id, import_user_dictionary(params["project_path"], params["file_path"])
+            )
+        if request["method"] in ("text.tokenize.preview", "text.tokenize.execute"):
+            params = request["params"]
+            tokenizer = (
+                tokenize_preview if request["method"].endswith("preview") else tokenize_execute
+            )
+            return result_response(
+                request_id,
+                tokenizer(params["project_path"], params["document_id"], params.get("config", {})),
+            )
     except ProjectError as error:
         return error_response(error.code, error.message, request_id=request_id)
     if request["method"] == "diagnostic.run":

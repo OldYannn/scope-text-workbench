@@ -8,7 +8,9 @@ version = "0.0.0"
 description = "Development package for the local SCOPE research engine"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "jieba==0.42.1",
+]
 
 [project.optional-dependencies]
 packaging = [
@@ -29,3 +31,4 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

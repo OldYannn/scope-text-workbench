@@ -241,7 +241,11 @@ class ProjectProtocolContractTest(unittest.TestCase):
     def test_opening_internal_directory_explains_project_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project = self.create_project(Path(temporary_directory), "基层治理访谈")["project"]
-            response = request("project.open", {"project_path": str(Path(project["project_path"]) / "corpus")}, "open-corpus")
+            response = request(
+                "project.open",
+                {"project_path": str(Path(project["project_path"]) / "corpus")},
+                "open-corpus",
+            )
             self.assertEqual(response["type"], "error")
             self.assertEqual(response["error"]["code"], "project_subdirectory")
             self.assertIn("基层治理访谈", response["error"]["message"])
@@ -251,17 +255,143 @@ class ProjectProtocolContractTest(unittest.TestCase):
             source = Path(temporary_directory) / "清洗.txt"
             source.write_bytes((FIXTURES.parent / "cleaning/sample.txt").read_bytes())
             project_path = self.create_project(Path(temporary_directory))["project"]["project_path"]
-            imported = request("corpus.import_txt", {"project_path": project_path, "file_paths": [str(source)]}, "clean-import")
+            imported = request(
+                "corpus.import_txt",
+                {"project_path": project_path, "file_paths": [str(source)]},
+                "clean-import",
+            )
             document = imported["result"]["entries"][0]["document"]
-            rules = {"normalize_whitespace": True, "normalize_newlines": True, "remove_urls": True, "strip_html": True, "punctuation_mode": "remove"}
-            preview = request("text.clean.preview", {"project_path": project_path, "document_id": document["document_id"], "rules": rules}, "clean-preview")
+            rules = {
+                "normalize_whitespace": True,
+                "normalize_newlines": True,
+                "remove_urls": True,
+                "strip_html": True,
+                "punctuation_mode": "remove",
+            }
+            preview = request(
+                "text.clean.preview",
+                {
+                    "project_path": project_path,
+                    "document_id": document["document_id"],
+                    "rules": rules,
+                },
+                "clean-preview",
+            )
             self.assertEqual(preview["result"]["analysis_text"], "中文 标签\n第二行")
-            executed = request("text.clean.execute", {"project_path": project_path, "document_id": document["document_id"], "rules": rules}, "clean-execute")
-            self.assertEqual(executed["result"]["analysis_text"], preview["result"]["analysis_text"])
-            reopened = request("document.get", {"project_path": project_path, "document_id": document["document_id"]}, "clean-reopen")
-            self.assertEqual(reopened["result"]["document"]["text"], "  中文  https://example.com  <b>标签</b>\n第二行！  \n")
+            executed = request(
+                "text.clean.execute",
+                {
+                    "project_path": project_path,
+                    "document_id": document["document_id"],
+                    "rules": rules,
+                },
+                "clean-execute",
+            )
+            self.assertEqual(
+                executed["result"]["analysis_text"], preview["result"]["analysis_text"]
+            )
+            reopened = request(
+                "document.get",
+                {"project_path": project_path, "document_id": document["document_id"]},
+                "clean-reopen",
+            )
+            self.assertEqual(
+                reopened["result"]["document"]["text"],
+                "  中文  https://example.com  <b>标签</b>\n第二行！  \n",
+            )
             self.assertEqual(reopened["result"]["document"]["analysis_text"], "中文 标签\n第二行")
             self.assertEqual(reopened["result"]["document"]["cleaning_config"], rules)
+
+    def test_tokenization_uses_analysis_text_and_persists_structured_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "分词.txt"
+            source.write_text(
+                "福州市推进基层治理体系建设，一肩挑干部参与三治融合。", encoding="utf-8"
+            )
+            dictionary = root / "术语词典.txt"
+            dictionary.write_text("基层治理\n一肩挑\n三治融合\n", encoding="utf-8")
+            project_path = self.create_project(root)["project"]["project_path"]
+            document = request(
+                "corpus.import_txt",
+                {"project_path": project_path, "file_paths": [str(source)]},
+                "token-import",
+            )["result"]["entries"][0]["document"]
+            missing = request(
+                "text.tokenize.execute",
+                {
+                    "project_path": project_path,
+                    "document_id": document["document_id"],
+                    "config": {},
+                },
+                "token-missing",
+            )
+            self.assertEqual(missing["error"]["code"], "analysis_text_missing")
+            request(
+                "text.clean.execute",
+                {
+                    "project_path": project_path,
+                    "document_id": document["document_id"],
+                    "rules": {
+                        "normalize_whitespace": True,
+                        "normalize_newlines": True,
+                        "remove_urls": True,
+                        "strip_html": True,
+                        "punctuation_mode": "keep",
+                    },
+                },
+                "token-clean",
+            )
+            imported_dictionary = request(
+                "tokenization.dictionary.import",
+                {"project_path": project_path, "file_path": str(dictionary)},
+                "dict-import",
+            )
+            dictionary_info = imported_dictionary["result"]["dictionary"]
+            tokenized = request(
+                "text.tokenize.execute",
+                {
+                    "project_path": project_path,
+                    "document_id": document["document_id"],
+                    "config": {
+                        "mode": "accurate",
+                        "hmm": True,
+                        "dictionary_id": dictionary_info["dictionary_id"],
+                    },
+                },
+                "token-execute",
+            )
+            result = tokenized["result"]
+            self.assertEqual(
+                [item["token"] for item in result["tokens"]],
+                [
+                    "福州市",
+                    "推进",
+                    "基层治理",
+                    "体系",
+                    "建设",
+                    "，",
+                    "一肩挑",
+                    "干部",
+                    "参与",
+                    "三治融合",
+                    "。",
+                ],
+            )
+            self.assertEqual(result["manifest"]["engine"], "jieba")
+            self.assertEqual(result["manifest"]["engine_version"], "0.42.1")
+            self.assertEqual(result["manifest"]["user_dictionary_hash"], dictionary_info["hash"])
+            reopened = request(
+                "document.get",
+                {"project_path": project_path, "document_id": document["document_id"]},
+                "token-reopen",
+            )["result"]["document"]
+            self.assertEqual(
+                [item["token"] for item in reopened["tokens"]],
+                [item["token"] for item in result["tokens"]],
+            )
+            self.assertEqual(reopened["text"], source.read_text(encoding="utf-8"))
+            self.assertEqual(reopened["analysis_text"], source.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 > 核查日期：2026-08-17
 >
-> 适用阶段：Milestone 0
+> 适用阶段：Milestone 2A（在 Milestone 0 快照基础上补充）
 >
 > 范围：核对 Apache License 2.0 标准文本、`NOTICE` 的适用性，以及当前清单和锁文件中直接核心依赖的明显许可证风险。本文不是法律意见，也不代替公开发布前的完整第三方许可证审计。
 
@@ -71,6 +71,7 @@ Python sidecar 当前没有产品运行时第三方依赖。直接工具依赖�
 | PyInstaller | `==6.21.0`  | GPLv2-or-later，并有允许把 bootloader 嵌入和分发到其他程序的专门例外。[官方 COPYING.txt](https://github.com/pyinstaller/pyinstaller/blob/v6.21.0/COPYING.txt)、[PyPI JSON metadata](https://pypi.org/pypi/pyinstaller/6.21.0/json) | 当前冻结方式未见明显阻塞；修改或再分发工具本体需重查 |
 | mypy        | `>=1.17,<2` | MIT。[mypy 官方仓库](https://github.com/python/mypy)                                                                                                                                                                               | 未发现明显冲突                                       |
 | Ruff        | `>=0.12,<1` | MIT。[Ruff 官方仓库](https://github.com/astral-sh/ruff)                                                                                                                                                                            | 未发现明显冲突                                       |
+| jieba       | `==0.42.1`  | MIT。jieba 0.42.1 源码发行包包含 MIT License 文本。                                                                                                                                            | 与 Apache-2.0 集成未发现明显冲突；版本固定 |
 
 ## 5. 有限的锁文件风险扫描
 

@@ -39,7 +39,13 @@ type DocumentDetail = DocumentSummary & {
   text: string;
   analysis_text?: string | null;
   cleaning_config?: CleaningRules | null;
+  tokenization_manifest?: TokenizationManifest | null;
+  tokens?: Token[] | null;
 };
+
+type Token = { index: number; token: string };
+type TokenizationManifest = { engine: string; engine_version: string; mode: string; hmm: boolean; user_dictionary: string; user_dictionary_id?: string | null; user_dictionary_hash: string | null; input_analysis_text_hash: string; tokenization_implementation_version: string; executed_at: string };
+type UserDictionary = { dictionary_id: string; name: string; hash: string; file_size: number; imported_at: string };
 
 type EngineMessage<T> = {
   type: "result" | "error";
@@ -88,6 +94,10 @@ const errorMessages: Record<string, string> = {
   file_read_failed: "文件不存在或无法读取",
   import_failed: "文件无法保存到项目中",
   document_not_found: "项目中找不到这篇文档",
+  analysis_text_missing: "该文档尚未生成分析文本，请先执行文本清洗",
+  dictionary_read_failed: "用户词典必须是 UTF-8 文本",
+  dictionary_not_found: "项目中找不到该用户词典",
+  unsupported_tokenization_mode: "当前版本只支持标准分词（精确模式）",
 };
 
 function requestId(prefix: string) {
@@ -140,6 +150,10 @@ function App() {
     punctuation_mode: "keep",
   });
   const [cleaningPreview, setCleaningPreview] = useState<string | null>(null);
+  const [tokenizationConfig, setTokenizationConfig] = useState({ mode: "accurate", hmm: true, dictionary_id: null as string | null });
+  const [tokens, setTokens] = useState<Token[]>([]);
+  const [tokenizationManifest, setTokenizationManifest] = useState<TokenizationManifest | null>(null);
+  const [userDictionary, setUserDictionary] = useState<UserDictionary | null>(null);
 
   useEffect(() => {
     if (!desktopRuntime) return;
@@ -298,15 +312,48 @@ function App() {
         setNotice(`无法查看文本：${engineError(message, "未知错误")}`);
         return;
       }
-      setSelectedDocument(message.result.document);
-      setCleaningRules(message.result.document.cleaning_config ?? cleaningRules);
+      const detail = message.result.document;
+      setSelectedDocument(detail);
+      setCleaningRules(detail.cleaning_config ?? cleaningRules);
       setCleaningPreview(null);
+      setTokens(detail.tokens ?? []);
+      setTokenizationManifest(detail.tokenization_manifest ?? null);
+      setTokenizationConfig((current) => ({ ...current, hmm: detail.tokenization_manifest?.hmm ?? current.hmm, dictionary_id: detail.tokenization_manifest?.user_dictionary_id ?? null }));
       setNotice("正在查看保存在项目中的原始文本");
     } catch (error) {
       setNotice(`无法查看文本：${String(error)}`);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function importDictionary() {
+    if (!project || busy || !desktopRuntime) return;
+    setBusy(true);
+    try {
+      const path = await invoke<string | null>("select_user_dictionary");
+      if (!path) return;
+      const message = await invoke<EngineMessage<{ dictionary: UserDictionary }>>("tokenization_dictionary_import", { requestId: requestId("dictionary-import"), projectPath: project.project_path, filePath: path });
+      if (message.type === "error" || !message.result) { setNotice(`无法导入用户词典：${engineError(message, "未知错误")}`); return; }
+      setUserDictionary(message.result.dictionary);
+      setTokenizationConfig((current) => ({ ...current, dictionary_id: message.result!.dictionary.dictionary_id }));
+      setTokens([]); setTokenizationManifest(null);
+      setNotice(`已导入用户词典“${message.result.dictionary.name}”，请重新运行分词`);
+    } catch (error) { setNotice(`无法导入用户词典：${String(error)}`); }
+    finally { setBusy(false); }
+  }
+
+  async function executeTokenization() {
+    if (!project || !selectedDocument || busy) return;
+    setBusy(true);
+    try {
+      const message = await invoke<EngineMessage<{ tokens: Token[]; manifest: TokenizationManifest }>>("text_tokenize_execute", { requestId: requestId("tokenize"), projectPath: project.project_path, documentId: selectedDocument.document_id, config: tokenizationConfig });
+      if (message.type === "error" || !message.result) { setNotice(`无法执行分词：${engineError(message, "未知错误")}`); return; }
+      setTokens(message.result.tokens); setTokenizationManifest(message.result.manifest);
+      setSelectedDocument((current) => current ? { ...current, tokens: message.result!.tokens, tokenization_manifest: message.result!.manifest } : current);
+      setNotice(`分词已保存，共 ${message.result.tokens.length} 个 token；原始语料和分析文本未修改`);
+    } catch (error) { setNotice(`无法执行分词：${String(error)}`); }
+    finally { setBusy(false); }
   }
 
   async function previewCleaning() {
@@ -573,6 +620,17 @@ function App() {
                 <div><small>原始文本（只读）</small><pre className="text-preview">{selectedDocument.text || "（空文件）"}</pre></div>
                 <div><small>分析文本</small><pre className="text-preview">{cleaningPreview ?? selectedDocument.analysis_text ?? "尚未执行清洗"}</pre></div>
               </div>
+              <div className="tokenization-toolbar" aria-label="中文分词">
+                <strong>中文分词</strong>
+                <span>标准分词（推荐）</span>
+                <label><input type="checkbox" checked={tokenizationConfig.hmm} onChange={(event) => setTokenizationConfig((current) => ({ ...current, hmm: event.target.checked }))} />识别词典外新词（HMM）</label>
+                <span className="dictionary-status">用户词典：{userDictionary?.name ?? (tokenizationManifest?.user_dictionary ?? "未使用")}</span>
+                <button className="text-button" onClick={() => void importDictionary()} disabled={busy}>导入用户词典</button>
+                <button className="primary-button" onClick={() => void executeTokenization()} disabled={busy || !selectedDocument.analysis_text}>重新运行分词</button>
+              </div>
+              <p className="cleaning-note">分词只使用分析文本，不会修改原始语料或分析文本。尚未清洗的文档不能静默使用原始文本。</p>
+              {tokenizationManifest && <div className="tokenization-meta">jieba {tokenizationManifest.engine_version} · 精确模式 · HMM {tokenizationManifest.hmm ? "开启" : "关闭"} · 输入 hash {tokenizationManifest.input_analysis_text_hash.slice(0, 12)}…</div>}
+              <div className="token-result" aria-label="分词结果">{tokens.length ? tokens.map((item) => <span key={`${item.index}-${item.token}`}>{item.token}</span>) : <small>尚未运行分词</small>}</div>
             </>
           ) : (
             <div className="preview-placeholder">

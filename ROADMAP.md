@@ -46,6 +46,31 @@ Milestone 0 Gate 通过后开始。具体范围以 `PROJECT_BRIEF.md` 为准。
 
 CSV、XLSX、DOCX、文本清洗和其他分析功能留给后续切片。
 
+## Milestone 1B — 文本清洗
+
+- [x] 保留不可变的原始 `text` 与派生 `analysis_text`
+- [x] 空白、换行、URL、HTML 和标点规则可复现保存
+- [x] 保存清洗配置、输入哈希、实现版本和审计事件
+
+### Milestone 1B Gate
+
+Milestone 1B 已完成，分词只允许使用明确保存的 `analysis_text`；未生成分析文本的文档会得到明确提示，不会静默回退到原始文本。
+
+## Milestone 2A — 中文分词基础能力
+
+- [x] 固定使用 `jieba==0.42.1`，标准精确模式（accurate/default）
+- [x] HMM 默认开启，并在 manifest 中记录开关
+- [x] 支持 UTF-8 jieba 标准用户词典，复制到项目 `dictionaries/` 目录并记录 SHA-256
+- [x] 保存结构化 token sequence，不把 token 拼接为不可逆字符串
+- [x] 保存输入 `analysis_text` hash、引擎/版本、模式、词典、执行时间和实现版本
+- [x] 查看 token、导入词典、重新运行，关闭并重新打开项目后恢复结果
+- [x] 固定中文 fixtures 覆盖普通句子、标点、空文本、中英文、数字、HMM 和词典变化
+- [x] 不修改原始语料或分析文本；不引入远程模型
+
+### Milestone 2A Gate
+
+分词能力完成后，下一阶段进入“停用词 / 词频 / TF-IDF 基础统计闭环”。停用词仍是独立阶段，默认不自动删除；TF-IDF 将基于当前用户语料库自行计算 document frequency / inverse document frequency，不把 jieba 内置关键词提取作为默认科研方法。
+
 ## 后续里程碑
 
 后续将按照 `PROJECT_BRIEF.md` 依次推进中文分词与词频分析、共现分析、研究审计链、可选模型 Provider、实验性 AI 编码和首个 Public Alpha。

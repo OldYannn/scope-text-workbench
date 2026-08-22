@@ -372,6 +372,74 @@ async fn text_clean_execute(
     .await
 }
 
+async fn text_tokenize(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    document_id: String,
+    config: Value,
+    method: &'static str,
+) -> Result<Value, String> {
+    approved.require_project(&project_path)?;
+    dispatch(&supervisor, None, json!({"protocol_version":"0.1","request_id":request_id,"method":method,"params":{"project_path":project_path,"document_id":document_id,"config":config}})).await
+}
+
+#[tauri::command]
+async fn text_tokenize_preview(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    document_id: String,
+    config: Value,
+) -> Result<Value, String> {
+    text_tokenize(
+        supervisor,
+        approved,
+        request_id,
+        project_path,
+        document_id,
+        config,
+        "text.tokenize.preview",
+    )
+    .await
+}
+
+#[tauri::command]
+async fn text_tokenize_execute(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    document_id: String,
+    config: Value,
+) -> Result<Value, String> {
+    text_tokenize(
+        supervisor,
+        approved,
+        request_id,
+        project_path,
+        document_id,
+        config,
+        "text.tokenize.execute",
+    )
+    .await
+}
+
+#[tauri::command]
+async fn tokenization_dictionary_import(
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    file_path: String,
+) -> Result<Value, String> {
+    approved.require_project(&project_path)?;
+    approved.require_source(&file_path)?;
+    dispatch(&supervisor, None, json!({"protocol_version":"0.1","request_id":request_id,"method":"tokenization.dictionary.import","params":{"project_path":project_path,"file_path":file_path}})).await
+}
+
 #[tauri::command]
 async fn select_project_parent(
     app: tauri::AppHandle,
@@ -432,6 +500,25 @@ async fn select_txt_files(
         .transpose()
 }
 
+#[tauri::command]
+async fn select_user_dictionary(
+    app: tauri::AppHandle,
+    approved: State<'_, ApprovedPaths>,
+) -> Result<Option<String>, String> {
+    app.dialog()
+        .file()
+        .set_title("选择中文用户词典（UTF-8 TXT）")
+        .add_filter("TXT 词典", &["txt"])
+        .blocking_pick_file()
+        .map(|selected| {
+            selected
+                .into_path()
+                .map_err(|_| "A selected file is unavailable".to_string())
+                .and_then(|path| approved.approve_source(path))
+        })
+        .transpose()
+}
+
 #[cfg(feature = "e2e")]
 #[tauri::command]
 fn e2e_paths(approved: State<'_, ApprovedPaths>) -> Result<Value, String> {
@@ -467,9 +554,13 @@ pub fn run() {
         document_get,
         text_clean_preview,
         text_clean_execute,
+        text_tokenize_preview,
+        text_tokenize_execute,
+        tokenization_dictionary_import,
         select_project_parent,
         select_project_folder,
         select_txt_files,
+        select_user_dictionary,
         e2e_paths
     ]);
 
@@ -485,9 +576,13 @@ pub fn run() {
         document_get,
         text_clean_preview,
         text_clean_execute,
+        text_tokenize_preview,
+        text_tokenize_execute,
+        tokenization_dictionary_import,
         select_project_parent,
         select_project_folder,
-        select_txt_files
+        select_txt_files,
+        select_user_dictionary
     ]);
 
     builder
