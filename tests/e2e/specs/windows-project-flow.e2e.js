@@ -153,15 +153,33 @@ describe("SCOPE Milestone 1A main flow", () => {
       clickButton("词频");
     });
 
-    await $("button=计算 TF / DF / RF10K").click();
-    await browser.execute(async () => {
+    const frequencyState = await browser.execute(async () => {
+      const button = Array.from(document.querySelectorAll("button")).find(
+        (item) => item.textContent?.trim() === "计算 TF / DF / RF10K",
+      );
+      if (!button) throw new Error("Missing frequency calculate button");
+      if (button.disabled)
+        throw new Error("Frequency calculate button is disabled");
+      button.click();
       const deadline = Date.now() + 60_000;
       while (Date.now() < deadline) {
-        if (document.querySelector(".frequency-status-success")) return;
+        const status = document.querySelector(".frequency-status");
+        if (status?.classList.contains("frequency-status-success")) {
+          return { status: "success", text: status.textContent ?? "" };
+        }
+        if (status?.classList.contains("frequency-status-error")) {
+          throw new Error(
+            `Frequency analysis failed: ${status.textContent ?? ""}`,
+          );
+        }
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      throw new Error("Timed out waiting for frequency success");
+      const status = document.querySelector(".frequency-status");
+      throw new Error(
+        `Timed out waiting for frequency success: ${status?.className ?? "missing"} ${status?.textContent ?? ""}`,
+      );
     });
+    expect(frequencyState.status).toBe("success");
     await expect($(".frequency-table")).toExist();
     const frequencyRow = await browser.execute(() => {
       const row = Array.from(
@@ -182,15 +200,34 @@ describe("SCOPE Milestone 1A main flow", () => {
     await $("button=分词").click();
     expect(await $(".token-result").getText()).toContain("基层治理");
     await $("button=词频").click();
-    await $("button=计算 TF / DF / RF10K").click();
-    await browser.execute(async () => {
+    const filteredFrequencyState = await browser.execute(async () => {
+      const button = Array.from(document.querySelectorAll("button")).find(
+        (item) => item.textContent?.trim() === "计算 TF / DF / RF10K",
+      );
+      if (!button)
+        throw new Error("Missing filtered frequency calculate button");
+      if (button.disabled)
+        throw new Error("Filtered frequency calculate button is disabled");
+      button.click();
       const deadline = Date.now() + 60_000;
       while (Date.now() < deadline) {
-        if (document.querySelector(".frequency-status-success")) return;
+        const status = document.querySelector(".frequency-status");
+        if (status?.classList.contains("frequency-status-success")) {
+          return { status: "success", text: status.textContent ?? "" };
+        }
+        if (status?.classList.contains("frequency-status-error")) {
+          throw new Error(
+            `Filtered frequency analysis failed: ${status.textContent ?? ""}`,
+          );
+        }
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      throw new Error("Timed out waiting for filtered frequency success");
+      const status = document.querySelector(".frequency-status");
+      throw new Error(
+        `Timed out waiting for filtered frequency success: ${status?.className ?? "missing"} ${status?.textContent ?? ""}`,
+      );
     });
+    expect(filteredFrequencyState.status).toBe("success");
     const filteredRow = await browser.execute(() =>
       Array.from(document.querySelectorAll(".frequency-table tbody tr")).some(
         (item) => item.textContent?.includes("基层治理"),
