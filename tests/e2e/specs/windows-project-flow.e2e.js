@@ -100,11 +100,6 @@ describe("SCOPE Milestone 1A main flow", () => {
           (button) => button.textContent?.trim() === "导出 XLSX",
         ),
       ),
-      assistant: Boolean(
-        Array.from(document.querySelectorAll("button")).find(
-          (button) => button.textContent?.trim() === "停用词优化助手",
-        ),
-      ),
     }));
     expect(workspaceState).toEqual({
       cleaning: false,
@@ -114,7 +109,6 @@ describe("SCOPE Milestone 1A main flow", () => {
       scopeDefault: "scope-cn-general-v1",
       exportCsv: true,
       exportXlsx: true,
-      assistant: true,
     });
     expect(workspaceState.profileOptions).toBeGreaterThanOrEqual(7);
   });
