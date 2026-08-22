@@ -107,8 +107,8 @@ describe("SCOPE Milestone 1A main flow", () => {
       ),
     }));
     expect(workspaceState).toEqual({
-      cleaning: true,
-      tokenize: true,
+      cleaning: false,
+      tokenize: false,
       frequency: true,
       profileOptions: expect.any(Number),
       scopeDefault: "scope-cn-general-v1",
