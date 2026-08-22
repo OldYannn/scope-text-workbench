@@ -57,11 +57,32 @@ describe("SCOPE Milestone 1A main flow", () => {
 
     // Keep the wiring smoke compact because each WebDriver command has a Tauri focus hook.
     await expect($("nav[aria-label='研究工作区']")).toExist();
+    const readWorkspace = () =>
+      browser.execute(() => ({
+        cleaning: Boolean(document.querySelector("[aria-label='文本清洗']")),
+        tokenize: Boolean(document.querySelector("[aria-label='中文分词']")),
+        frequency: Boolean(document.querySelector("[aria-label='词频分析']")),
+      }));
+
     await $("button=清洗").click();
+    await browser.pause(300);
+    let workspaceState = await readWorkspace();
+    expect(workspaceState).toEqual({
+      cleaning: true,
+      tokenize: false,
+      frequency: false,
+    });
     await $("button=分词").click();
+    await browser.pause(300);
+    workspaceState = await readWorkspace();
+    expect(workspaceState).toEqual({
+      cleaning: false,
+      tokenize: true,
+      frequency: false,
+    });
     await $("button=词频").click();
     await browser.pause(1_000);
-    const workspaceState = await browser.execute(() => ({
+    workspaceState = await browser.execute(() => ({
       cleaning: Boolean(document.querySelector("[aria-label='文本清洗']")),
       tokenize: Boolean(document.querySelector("[aria-label='中文分词']")),
       frequency: Boolean(document.querySelector("[aria-label='词频分析']")),
