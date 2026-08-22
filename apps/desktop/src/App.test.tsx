@@ -157,4 +157,106 @@ describe("Milestone 1A project workflow", () => {
       expect.objectContaining({ projectPath: "/研究/基层治理访谈" }),
     );
   });
+
+  it("renders a successful frequency response in the active workspace", async () => {
+    const frequency = {
+      rows: [
+        {
+          token: "基层治理",
+          tf: 2,
+          df: 1,
+          document_coverage: 1,
+          rf10k: 5000,
+        },
+      ],
+      candidates: [],
+      manifest: {
+        included_document_count: 1,
+        excluded_document_ids: [],
+        effective_token_count: 4,
+        raw_token_count: 4,
+        eligible_token_count: 4,
+        stopword_base_profile_id: "scope-cn-general-v1",
+        resolved_stopword_hash: "hash",
+      },
+      skipped_document_count: 0,
+      result_hash: "result-hash",
+      profile: {
+        base_profile_id: "scope-cn-general-v1",
+        base_profile_version: "1",
+        base_profile_hash: "profile-hash",
+        custom_additions: [],
+        custom_exclusions: [],
+        resolved_stopwords: ["的"],
+        resolved_stopword_hash: "hash",
+      },
+    };
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "e2e_paths") return Promise.reject(new Error("none"));
+      if (command === "select_project_parent") return Promise.resolve("/研究");
+      if (command === "project_create")
+        return Promise.resolve({
+          type: "result",
+          result: {
+            project: { ...emptyProject, document_count: 1 },
+            documents: [document],
+          },
+        });
+      if (command === "stopword_profiles")
+        return Promise.resolve({
+          type: "result",
+          result: {
+            profiles: [
+              {
+                profile_id: "scope-cn-general-v1",
+                version: "1",
+                label: "SCOPE",
+                count: 86,
+                status: "draft",
+              },
+            ],
+          },
+        });
+      if (command === "stopword_get")
+        return Promise.resolve({
+          type: "result",
+          result: { profile: frequency.profile },
+        });
+      if (command === "document_get")
+        return Promise.resolve({
+          type: "result",
+          result: {
+            document: {
+              ...document,
+              text: "基层治理需要政策支持。",
+              analysis_text: "基层治理需要政策支持。",
+              tokens: [{ index: 0, token: "基层治理" }],
+              tokenization_manifest: null,
+            },
+          },
+        });
+      if (command === "frequency_analyze")
+        return Promise.resolve({ type: "result", result: frequency });
+      throw new Error(`Unexpected command: ${command}`);
+    });
+
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText("项目名称"), "频率测试");
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    await user.click(screen.getByRole("button", { name: /访谈一\.txt/ }));
+    await user.click(screen.getByRole("button", { name: "词频" }));
+    await user.click(
+      screen.getByRole("button", { name: "计算 TF / DF / RF10K" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "词频分析完成：1 / 1 篇文档参与分析；有效 token：4",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("cell", { name: "基层治理" })).toBeTruthy();
+    expect(screen.getByText("导出 CSV")).toBeTruthy();
+    expect(screen.getByText("导出 XLSX")).toBeTruthy();
+  });
 });

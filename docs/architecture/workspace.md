@@ -8,3 +8,9 @@ SCOPE 的研究工作台保留左侧 Corpus sidebar。右侧 Main Workspace 使�
 - 词频：Stopword Profile、resolved set、frequency result、Optimization Assistant 和 CSV/XLSX export。
 
 Corpus sidebar 不随标签切换消失，主要滚动区域由 workspace 内容承担。原生窗口 `minWidth` 与 CSS usable minimum 固定为 980px，以保证侧栏、统计信息和工具栏在 Windows 桌面尺寸下不互相遮挡。
+
+## Frequency 状态规则
+
+词频是右侧 Main Workspace 的直接内容，不在 corpus workspace 之后追加成长页面。用户触发任何分析任务时，当前工作区必须立即显示 `running` 状态；完成后显示 `success` 和参与文档/有效 token 数；失败显示 `error` 和可理解的重试提示。全局 notice 可以保留用于审计，但不能是唯一反馈位置。
+
+成功但参与文档为 0、以及参与文档大于 0 但过滤后 rows 为空，分别显示可操作的空结果说明，不得伪装成执行失败。Optimization Assistant 与 CSV/XLSX 入口始终可见，未完成有效词频分析时 disabled 并说明“请先完成词频分析”。

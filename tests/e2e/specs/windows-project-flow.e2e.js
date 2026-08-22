@@ -22,7 +22,7 @@ async function waitForProjectWorkspace() {
 async function waitForImportedDocument() {
   await browser.waitUntil(
     async () => {
-      const document = $("button*=正常中文.txt");
+      const document = $("button*=frequency-gui.txt");
       if (await document.isExisting()) return true;
 
       const notice = $(".notice");
@@ -50,9 +50,9 @@ describe("SCOPE Milestone 1A main flow", () => {
     await waitForProjectWorkspace();
     await $("[aria-label='导入 TXT']").click();
     await waitForImportedDocument();
-    await $("button*=正常中文.txt").click();
+    await $("button*=frequency-gui.txt").click();
     await expect($(".text-preview")).toHaveText(
-      "政策执行需要同时关注制度设计与基层实践。",
+      "基层治理需要政策支持。基层治理需要实践检验。",
     );
 
     // Keep the wiring smoke compact because each WebDriver command has a Tauri focus hook.
@@ -111,5 +111,56 @@ describe("SCOPE Milestone 1A main flow", () => {
       exportXlsx: true,
     });
     expect(workspaceState.profileOptions).toBeGreaterThanOrEqual(7);
+
+    await $("button=清洗").click();
+    await $("button=执行清洗").click();
+    await browser.waitUntil(
+      async () => (await $(".notice").getText()).includes("清洗已保存"),
+      { timeout: 60_000, interval: 1_000 },
+    );
+    await $("button=分词").click();
+    await $("button=重新运行分词").click();
+    await browser.waitUntil(
+      async () => (await $(".token-result").getText()).includes("基层治理"),
+      { timeout: 60_000, interval: 1_000 },
+    );
+    await $("button=词频").click();
+
+    await $("button=计算 TF / DF / RF10K").click();
+    await browser.waitUntil(
+      async () => await $(".frequency-status-success").isExisting(),
+      { timeout: 60_000, interval: 1_000 },
+    );
+    await expect($(".frequency-table")).toExist();
+    const frequencyRow = await browser.execute(() => {
+      const row = Array.from(
+        document.querySelectorAll(".frequency-table tbody tr"),
+      ).find((item) => item.textContent?.includes("基层治理"));
+      return row?.textContent ?? null;
+    });
+    expect(frequencyRow).toContain("基层治理");
+    expect(frequencyRow).toContain("2");
+    expect(frequencyRow).toContain("1");
+
+    await $("input[aria-label='手动增加停用词']").setValue("基层治理");
+    await $("button=增加").click();
+    await expect($(".frequency-status-idle")).toExist();
+    await expect($(".frequency-status-idle")).toHaveText(
+      expect.stringContaining("尚未执行词频分析"),
+    );
+    await $("button=分词").click();
+    expect(await $(".token-result").getText()).toContain("基层治理");
+    await $("button=词频").click();
+    await $("button=计算 TF / DF / RF10K").click();
+    await browser.waitUntil(
+      async () => await $(".frequency-status-success").isExisting(),
+      { timeout: 60_000, interval: 1_000 },
+    );
+    const filteredRow = await browser.execute(() =>
+      Array.from(document.querySelectorAll(".frequency-table tbody tr")).some(
+        (item) => item.textContent?.includes("基层治理"),
+      ),
+    );
+    expect(filteredRow).toBe(false);
   });
 });

@@ -46,6 +46,41 @@
   color: #8f2e18;
 }
 
+.frequency-panel {
+  min-width: 0;
+  padding: 0 22px 24px;
+  overflow: auto;
+}
+
+.frequency-panel .panel-heading {
+  margin-inline: -22px;
+}
+
+.frequency-status {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--rule);
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.frequency-status-running {
+  border-left-color: var(--cobalt);
+  color: var(--cobalt-dark);
+}
+
+.frequency-status-success {
+  border-left-color: var(--green);
+  color: var(--green);
+}
+
+.frequency-status-error {
+  border-left-color: var(--orange);
+  background: #fff0eb;
+  color: #8f2e18;
+}
+
 * {
   box-sizing: border-box;
 }

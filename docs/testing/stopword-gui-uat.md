@@ -24,3 +24,24 @@
 6. 切换 TF、DF、Coverage、RF10K、词语排序并测试 Top 50/100/500/全部。
 7. 打开可选停用词优化助手，确认候选文案和加入/保留/忽略操作；加入候选后确认只提示重新计算，不重新分词。
 8. 导出 UTF-8 中文路径 CSV 和 XLSX，确认 CSV BOM，XLSX 包含“词频结果”和“分析说明”，且 manifest 与页面使用同一 resolved hash。
+
+## UAT #2（Windows production artifact）
+
+基准 commit：`144703667afd038415a89c74751695541109ee3f`。
+
+通过：原生最小窗口、`project.json` 打开流程、文本/清洗/分词/词频工作区分类、停用词 profile 加载与项目自定义停用词操作。
+
+UX 待修：停用词输入框“手动增加词语”语义不够明确，本轮改为“手动增加停用词”。
+
+阻塞：点击“计算 TF / DF / RF10K”后没有当前工作区内可见的 running/success/error 状态和结果，导致 Optimization Assistant、CSV/XLSX 与 Frequency 关闭重开状态无法继续验收。Milestone 2B Gate 仍为 **NOT READY**，不进入 TF-IDF。
+
+本次代码检查确认，Python frozen sidecar 和 Tauri `frequency_analyze` 转发能力已存在；GUI 问题来自 Frequency section 被放在 `corpus-workspace` 结束之后，结果落在主工作区之外，同时 `executeFrequency` 只有全局 notice、没有本地状态，也没有区分空结果。该问题不能通过增加提示文案替代，必须修正 workspace 结构和状态渲染。
+
+## Milestone 2B.3 checklist
+
+- [ ] Frequency 作为右侧 Main Workspace 的直接内容显示，而不是 corpus workspace 后的追加 section。
+- [ ] 计算按钮提供 idle/running/success/error 状态，错误同时显示在 Frequency Workspace 内。
+- [ ] 区分成功有 rows、成功但无参与文档、成功但过滤后无 rows。
+- [ ] Optimization Assistant 与 CSV/XLSX 始终可见；未完成分析时 disabled 并说明原因。
+- [ ] Windows GUI E2E 完成清洗 → 分词 → 词频，并断言固定 fixture 的 TF/DF/RF10K 与停用词过滤回归。
+- [ ] `frequency.latest` 的项目重开恢复策略明确记录；在未接入完整 profile/result 恢复前，不把旧结果静默显示为当前有效结果。

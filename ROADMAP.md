@@ -99,6 +99,12 @@ Milestone 1B 已完成，分词只允许使用明确保存的 `analysis_text`；
 
 本次 pre-UAT correction 将原生窗口 `minWidth` 与 CSS 的 980px usable minimum 对齐，并将文本、清洗、分词、词频改为真正 conditional-rendered 的独立 workspace；SCOPE v1 Draft 恢复为 86 个 exact tokens。
 
+### Milestone 2B.3 — Frequency GUI Closure
+
+当前 Gate：**NOT READY**（Windows Project Owner UAT #2）。最小窗口、`project.json`、workspace 分类、stopword profiles 和 custom stopwords 已通过；Frequency 点击后缺少当前工作区内的可见结果/错误状态，阻塞 Optimization Assistant、CSV/XLSX 和重开状态验收。
+
+本轮只修复 Frequency GUI wiring 与状态反馈，不调整分词或停用词方法，也不进入 TF-IDF。Frequency 必须作为右侧 Main Workspace 的直接内容，提供 idle/running/success/error，区分无参与文档与过滤后空结果，并由 Windows GUI E2E 执行真实清洗 → 分词 → 词频 → 停用词过滤回归。`frequency.latest` 目前仍由 Python engine 提供；在 GUI 未能恢复完整 profile/result manifest 前，重开项目不静默显示旧结果，行为需在 UAT 中明确验证。
+
 后续将按照 `PROJECT_BRIEF.md` 依次推进中文分词与词频分析、共现分析、研究审计链、可选模型 Provider、实验性 AI 编码和首个 Public Alpha。
 
 宣布任何 Milestone 完成前，都必须通过 `AGENTS.md` 规定的构建、测试、格式、文档、隐私和可复现性检查。

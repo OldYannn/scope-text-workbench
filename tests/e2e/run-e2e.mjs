@@ -13,7 +13,7 @@ const wdioCliPath = path.join(
 const fixtureDirectory = mkdtempSync(path.join(os.tmpdir(), "scope-e2e-"));
 const fixtureFile = path.resolve(
   configurationDirectory,
-  "../../engine/tests/fixtures/corpus/正常中文.txt",
+  "../../engine/tests/fixtures/corpus/frequency-gui.txt",
 );
 
 let result;
