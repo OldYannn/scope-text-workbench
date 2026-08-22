@@ -4,7 +4,7 @@
 
 本文定义桌面壳与 Python 分析引擎之间的 `0.1` 开发协议。目前覆盖项目、清洗、分词、停用词 profile、词频分析与导出。
 
-传输格式为 UTF-8 NDJSON（Newline-Delimited JSON，每行一个完整 JSON 对象）。桌面壳把请求写入分析引擎的标准输入；分析引擎把协议消息写入标准输出，把供开发者阅读的诊断信息写入标准错误。
+传输格式为 UTF-8 NDJSON（Newline-Delimited JSON，每行一个完整 JSON 对象）。桌面壳把请求写入分析引擎的标准输入；分析引擎把协议消息写入标准输出，把供开发者阅读的诊断信息写入标准错误。生产和验证端的 subprocess consumer 必须显式使用 `encoding="utf-8", errors="strict"`，不能依赖操作系统 locale；错误 UTF-8 必须失败，不能替换或忽略。
 
 ## 兼容规则
 

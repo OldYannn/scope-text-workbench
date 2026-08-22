@@ -97,7 +97,7 @@ CI 会分别在 macOS arm64、macOS x64 和 Windows x64 原生 Runner 上构建 
 
 ## Windows GUI E2E
 
-PyInstaller onefile 通过 `--add-data` 将 `engine/src/scope_engine/resources/stopwords` 打包到 `scope_engine/resources/stopwords`。运行时按 sidecar 内部 `__file__` 相邻 resources 查找，不依赖源码目录或当前工作目录。`scripts/verify_sidecar.py` 会在冻结 executable 内执行 profiles、resolve、导入、清洗、分词、词频和 CSV/XLSX 导出 smoke，资源遗漏会直接使 CI 失败。
+PyInstaller onefile 通过 `--add-data` 将 `engine/src/scope_engine/resources/stopwords` 打包到 `scope_engine/resources/stopwords`。运行时按 sidecar 内部 `__file__` 相邻 resources 查找，不依赖源码目录或当前工作目录。`scripts/verify_sidecar.py` 会在冻结 executable 内执行 profiles、resolve、导入、清洗、分词、词频和 CSV/XLSX 导出 smoke，资源遗漏会直接使 CI 失败。验证器与 sidecar 的 stdin/stdout 均固定为严格 UTF-8，不依赖 Windows/macOS 系统 locale。
 
 Windows x64 CI 先生成普通 Production bundle，再构建一个仅启用 `e2e` Cargo feature 的 Release 优化 Test Build。WebdriverIO 通过 embedded provider 启动这个真实 Tauri 应用，建立会话并确认一个稳定的关键页面元素可见。任何会话或断言失败都会阻塞 Windows Job。
 

@@ -11,6 +11,32 @@ from typing import Any
 from build_sidecar import REPOSITORY_ROOT, rust_target_triple
 
 
+def run_frozen_sidecar(
+    sidecar_path: Path,
+    input_text: str,
+    *,
+    environment: dict[str, str],
+    timeout: int,
+) -> subprocess.CompletedProcess[str]:
+    """Run the UTF-8 NDJSON sidecar contract independently of host locale."""
+    return subprocess.run(
+        [str(sidecar_path)],
+        input=input_text,
+        capture_output=True,
+        check=False,
+        env=environment,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        timeout=timeout,
+    )
+
+
+def decode_protocol_output(raw: bytes) -> str:
+    """Decode protocol bytes strictly as UTF-8 for locale-independent tests."""
+    return raw.decode("utf-8", errors="strict")
+
+
 def request(request_id: str, method: str, params: dict[str, Any]) -> str:
     return json.dumps(
         {
@@ -46,13 +72,10 @@ def verify(sidecar_path: Path) -> None:
                 {"name": "冻结验证项目", "parent_path": str(project_parent)},
             ),
         ]
-        completed = subprocess.run(
-            [str(sidecar_path)],
-            input="\n".join(input_lines) + "\n",
-            capture_output=True,
-            check=False,
-            env=environment,
-            text=True,
+        completed = run_frozen_sidecar(
+            sidecar_path,
+            "\n".join(input_lines) + "\n",
+            environment=environment,
             timeout=30,
         )
         if completed.returncode != 0:
@@ -138,13 +161,10 @@ def verify(sidecar_path: Path) -> None:
             "corpus.import_txt",
             {"project_path": project_path, "file_paths": [str(source_path)]},
         )
-        follow_up = subprocess.run(
-            [str(sidecar_path)],
-            input=resolve_input + "\n" + import_input + "\n",
-            capture_output=True,
-            check=False,
-            env=environment,
-            text=True,
+        follow_up = run_frozen_sidecar(
+            sidecar_path,
+            resolve_input + "\n" + import_input + "\n",
+            environment=environment,
             timeout=30,
         )
         if follow_up.returncode != 0:
@@ -184,21 +204,18 @@ def verify(sidecar_path: Path) -> None:
             )
             + "\n"
         )
-        workflow = subprocess.run(
-            [str(sidecar_path)],
-            input=workflow_input,
-            capture_output=True,
-            check=False,
-            env=environment,
-            text=True,
+        workflow = run_frozen_sidecar(
+            sidecar_path,
+            workflow_input,
+            environment=environment,
             timeout=30,
         )
         if workflow.returncode != 0:
             raise AssertionError(f"Frozen cleaning failed: {workflow.stderr}")
         # Each request is handled by a fresh process in this verifier; project state is persisted on disk.
-        tokenization = subprocess.run(
-            [str(sidecar_path)],
-            input=request(
+        tokenization = run_frozen_sidecar(
+            sidecar_path,
+            request(
                 "frozen-tokenize",
                 "text.tokenize.execute",
                 {
@@ -208,24 +225,18 @@ def verify(sidecar_path: Path) -> None:
                 },
             )
             + "\n",
-            capture_output=True,
-            check=False,
-            env=environment,
-            text=True,
+            environment=environment,
             timeout=30,
         )
         if tokenization.returncode != 0:
             raise AssertionError(f"Frozen tokenization failed: {tokenization.stderr}")
-        frequency = subprocess.run(
-            [str(sidecar_path)],
-            input=request(
+        frequency = run_frozen_sidecar(
+            sidecar_path,
+            request(
                 "frozen-frequency", "frequency.analyze", {"project_path": project_path}
             )
             + "\n",
-            capture_output=True,
-            check=False,
-            env=environment,
-            text=True,
+            environment=environment,
             timeout=30,
         )
         if frequency.returncode != 0:
@@ -243,9 +254,9 @@ def verify(sidecar_path: Path) -> None:
             )
         for format_name in ("csv", "xlsx"):
             destination = project_parent / f"冻结结果.{format_name}"
-            export = subprocess.run(
-                [str(sidecar_path)],
-                input=request(
+            export = run_frozen_sidecar(
+                sidecar_path,
+                request(
                     f"frozen-export-{format_name}",
                     "frequency.export",
                     {
@@ -255,10 +266,7 @@ def verify(sidecar_path: Path) -> None:
                     },
                 )
                 + "\n",
-                capture_output=True,
-                check=False,
-                env=environment,
-                text=True,
+                environment=environment,
                 timeout=30,
             )
             if export.returncode != 0 or not destination.is_file():
@@ -271,13 +279,10 @@ def verify(sidecar_path: Path) -> None:
         request("frozen-describe", "system.describe", {}),
         request("frozen-diagnostic", "diagnostic.run", {"steps": 2, "delay_ms": 0}),
     ]
-    completed = subprocess.run(
-        [str(sidecar_path)],
-        input="\n".join(input_lines) + "\n",
-        capture_output=True,
-        check=False,
-        env=environment,
-        text=True,
+    completed = run_frozen_sidecar(
+        sidecar_path,
+        "\n".join(input_lines) + "\n",
+        environment=environment,
         timeout=20,
     )
     if completed.returncode != 0:
@@ -311,13 +316,10 @@ def verify(sidecar_path: Path) -> None:
     if manifest["network_used"] is not False:
         raise AssertionError("Frozen diagnostic unexpectedly reported network use")
 
-    crashed = subprocess.run(
-        [str(sidecar_path)],
-        input=request("frozen-crash", "diagnostic.crash", {}) + "\n",
-        capture_output=True,
-        check=False,
-        env=environment,
-        text=True,
+    crashed = run_frozen_sidecar(
+        sidecar_path,
+        request("frozen-crash", "diagnostic.crash", {}) + "\n",
+        environment=environment,
         timeout=20,
     )
     if crashed.returncode == 0:

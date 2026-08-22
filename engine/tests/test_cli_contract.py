@@ -12,6 +12,10 @@ from pathlib import Path
 from typing import Any, TextIO
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_ROOT = ENGINE_ROOT.parent / "scripts"
+sys.path.insert(0, str(SCRIPTS_ROOT))
+
+from verify_sidecar import decode_protocol_output  # noqa: E402
 
 
 def invoke_engine(line: str) -> subprocess.CompletedProcess[str]:
@@ -95,6 +99,12 @@ class EngineProcess:
 
 
 class SidecarProtocolContractTest(unittest.TestCase):
+    def test_frozen_protocol_output_is_strict_utf8(self) -> None:
+        payload = '{"message":"中文"}'.encode()
+        self.assertEqual(decode_protocol_output(payload), '{"message":"中文"}')
+        with self.assertRaises(UnicodeDecodeError):
+            decode_protocol_output(b"\x80")
+
     def test_protocol_streams_are_utf8_even_when_process_default_is_not(self) -> None:
         environment = os.environ.copy()
         source_path = str(ENGINE_ROOT / "src")
