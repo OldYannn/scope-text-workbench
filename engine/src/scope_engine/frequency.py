@@ -90,6 +90,7 @@ def analyze_documents(
     }
     return {
         "rows": rows,
+        "candidates": optimization_candidates({"rows": rows, "profile": profile}),
         "manifest": manifest,
         "profile": profile,
         "included_document_count": document_count,
