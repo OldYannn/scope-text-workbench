@@ -34,11 +34,17 @@ def verify(sidecar_path: Path) -> None:
     with tempfile.TemporaryDirectory(prefix="scope-frozen-verify-") as temporary:
         project_parent = Path(temporary)
         source_path = project_parent / "fixture.txt"
-        source_path.write_text("基层治理需要政策支持。基层治理需要实践检验。", encoding="utf-8")
+        source_path.write_text(
+            "基层治理需要政策支持。基层治理需要实践检验。", encoding="utf-8"
+        )
         input_lines = [
             request("frozen-describe", "system.describe", {}),
             request("frozen-profiles", "stopwords.profiles", {}),
-            request("frozen-create", "project.create", {"name": "冻结验证项目", "parent_path": str(project_parent)}),
+            request(
+                "frozen-create",
+                "project.create",
+                {"name": "冻结验证项目", "parent_path": str(project_parent)},
+            ),
         ]
         completed = subprocess.run(
             [str(sidecar_path)],
@@ -54,9 +60,15 @@ def verify(sidecar_path: Path) -> None:
                 f"Frozen sidecar exited with {completed.returncode}: {completed.stderr}"
             )
         messages = [json.loads(line) for line in completed.stdout.splitlines() if line]
-        by_id = {message["request_id"]: message for message in messages if message["type"] == "result"}
+        by_id = {
+            message["request_id"]: message
+            for message in messages
+            if message["type"] == "result"
+        }
         if "frozen-profiles" not in by_id:
-            raise AssertionError(f"stopwords.profiles failed in frozen sidecar: {messages}")
+            raise AssertionError(
+                f"stopwords.profiles failed in frozen sidecar: {messages}"
+            )
         profiles = by_id["frozen-profiles"]["result"]["profiles"]
         expected_profiles = {
             "scope-cn-general-v1": ("SCOPE 中文通用停用词表 v1", 86, "draft"),
@@ -69,60 +81,196 @@ def verify(sidecar_path: Path) -> None:
         }
         indexed_profiles = {profile["profile_id"]: profile for profile in profiles}
         if set(indexed_profiles) != set(expected_profiles):
-            raise AssertionError(f"Unexpected frozen profiles: {sorted(indexed_profiles)}")
+            raise AssertionError(
+                f"Unexpected frozen profiles: {sorted(indexed_profiles)}"
+            )
         for profile_id, (label, count, status) in expected_profiles.items():
             profile = indexed_profiles[profile_id]
-            if (profile["label"], profile["count"], profile["status"]) != (label, count, status):
+            if (profile["label"], profile["count"], profile["status"]) != (
+                label,
+                count,
+                status,
+            ):
                 raise AssertionError(f"Unexpected profile {profile_id}: {profile}")
             if not profile["hash"]:
                 raise AssertionError(f"Profile {profile_id} has no hash")
         capabilities = by_id["frozen-describe"]["result"]["capabilities"]
         required_capabilities = {
-            "system.describe", "project.create", "project.open", "corpus.import_txt", "document.get",
-            "text.clean.preview", "text.clean.execute", "text.tokenize.preview", "text.tokenize.execute",
-            "tokenization.dictionary.import", "stopwords.profiles", "stopwords.get", "stopwords.resolve",
-            "stopwords.import", "frequency.analyze", "frequency.latest", "frequency.export",
-            "diagnostic.run", "diagnostic.crash", "request.cancel",
+            "system.describe",
+            "project.create",
+            "project.open",
+            "corpus.import_txt",
+            "document.get",
+            "text.clean.preview",
+            "text.clean.execute",
+            "text.tokenize.preview",
+            "text.tokenize.execute",
+            "tokenization.dictionary.import",
+            "stopwords.profiles",
+            "stopwords.get",
+            "stopwords.resolve",
+            "stopwords.import",
+            "frequency.analyze",
+            "frequency.latest",
+            "frequency.export",
+            "diagnostic.run",
+            "diagnostic.crash",
+            "request.cancel",
         }
         if not required_capabilities.issubset(capabilities):
-            raise AssertionError(f"Missing frozen capabilities: {sorted(required_capabilities - set(capabilities))}")
+            raise AssertionError(
+                f"Missing frozen capabilities: {sorted(required_capabilities - set(capabilities))}"
+            )
 
         project_path = by_id["frozen-create"]["result"]["project"]["project_path"]
-        resolve_input = request("frozen-resolve", "stopwords.resolve", {"project_path": project_path, "base_profile_id": "scope-cn-general-v1", "custom_additions": ["验证词"], "custom_exclusions": ["的"]})
-        import_input = request("frozen-import", "corpus.import_txt", {"project_path": project_path, "file_paths": [str(source_path)]})
-        follow_up = subprocess.run([str(sidecar_path)], input=resolve_input + "\n" + import_input + "\n", capture_output=True, check=False, env=environment, text=True, timeout=30)
+        resolve_input = request(
+            "frozen-resolve",
+            "stopwords.resolve",
+            {
+                "project_path": project_path,
+                "base_profile_id": "scope-cn-general-v1",
+                "custom_additions": ["验证词"],
+                "custom_exclusions": ["的"],
+            },
+        )
+        import_input = request(
+            "frozen-import",
+            "corpus.import_txt",
+            {"project_path": project_path, "file_paths": [str(source_path)]},
+        )
+        follow_up = subprocess.run(
+            [str(sidecar_path)],
+            input=resolve_input + "\n" + import_input + "\n",
+            capture_output=True,
+            check=False,
+            env=environment,
+            text=True,
+            timeout=30,
+        )
         if follow_up.returncode != 0:
-            raise AssertionError(f"Frozen stopword resolve/import failed: {follow_up.stderr}")
-        follow_messages = {message["request_id"]: message for message in (json.loads(line) for line in follow_up.stdout.splitlines() if line)}
+            raise AssertionError(
+                f"Frozen stopword resolve/import failed: {follow_up.stderr}"
+            )
+        follow_messages = {
+            message["request_id"]: message
+            for message in (
+                json.loads(line) for line in follow_up.stdout.splitlines() if line
+            )
+        }
         resolved = follow_messages["frozen-resolve"]["result"]["profile"]
-        if "验证词" not in resolved["resolved_stopwords"] or "的" in resolved["resolved_stopwords"]:
-            raise AssertionError(f"Frozen stopword resolve produced wrong set: {resolved}")
-        document_id = follow_messages["frozen-import"]["result"]["entries"][0]["document"]["document_id"]
-        workflow_input = "\n".join([
-            request("frozen-clean", "text.clean.execute", {"project_path": project_path, "document_id": document_id, "rules": {}}),
-        ]) + "\n"
-        workflow = subprocess.run([str(sidecar_path)], input=workflow_input, capture_output=True, check=False, env=environment, text=True, timeout=30)
+        if (
+            "验证词" not in resolved["resolved_stopwords"]
+            or "的" in resolved["resolved_stopwords"]
+        ):
+            raise AssertionError(
+                f"Frozen stopword resolve produced wrong set: {resolved}"
+            )
+        document_id = follow_messages["frozen-import"]["result"]["entries"][0][
+            "document"
+        ]["document_id"]
+        workflow_input = (
+            "\n".join(
+                [
+                    request(
+                        "frozen-clean",
+                        "text.clean.execute",
+                        {
+                            "project_path": project_path,
+                            "document_id": document_id,
+                            "rules": {},
+                        },
+                    ),
+                ]
+            )
+            + "\n"
+        )
+        workflow = subprocess.run(
+            [str(sidecar_path)],
+            input=workflow_input,
+            capture_output=True,
+            check=False,
+            env=environment,
+            text=True,
+            timeout=30,
+        )
         if workflow.returncode != 0:
             raise AssertionError(f"Frozen cleaning failed: {workflow.stderr}")
         # Each request is handled by a fresh process in this verifier; project state is persisted on disk.
-        tokenization = subprocess.run([str(sidecar_path)], input=request("frozen-tokenize", "text.tokenize.execute", {"project_path": project_path, "document_id": document_id, "config": {}}) + "\n", capture_output=True, check=False, env=environment, text=True, timeout=30)
+        tokenization = subprocess.run(
+            [str(sidecar_path)],
+            input=request(
+                "frozen-tokenize",
+                "text.tokenize.execute",
+                {
+                    "project_path": project_path,
+                    "document_id": document_id,
+                    "config": {},
+                },
+            )
+            + "\n",
+            capture_output=True,
+            check=False,
+            env=environment,
+            text=True,
+            timeout=30,
+        )
         if tokenization.returncode != 0:
             raise AssertionError(f"Frozen tokenization failed: {tokenization.stderr}")
-        frequency = subprocess.run([str(sidecar_path)], input=request("frozen-frequency", "frequency.analyze", {"project_path": project_path}) + "\n", capture_output=True, check=False, env=environment, text=True, timeout=30)
+        frequency = subprocess.run(
+            [str(sidecar_path)],
+            input=request(
+                "frozen-frequency", "frequency.analyze", {"project_path": project_path}
+            )
+            + "\n",
+            capture_output=True,
+            check=False,
+            env=environment,
+            text=True,
+            timeout=30,
+        )
         if frequency.returncode != 0:
             raise AssertionError(f"Frozen frequency failed: {frequency.stderr}")
-        frequency_message = next(json.loads(line) for line in frequency.stdout.splitlines() if line)
+        frequency_message = next(
+            json.loads(line) for line in frequency.stdout.splitlines() if line
+        )
         frequency_result = frequency_message["result"]
-        if not frequency_result["rows"] or frequency_result["manifest"]["effective_token_count"] <= 0:
-            raise AssertionError(f"Frozen frequency result is empty: {frequency_result}")
+        if (
+            not frequency_result["rows"]
+            or frequency_result["manifest"]["effective_token_count"] <= 0
+        ):
+            raise AssertionError(
+                f"Frozen frequency result is empty: {frequency_result}"
+            )
         for format_name in ("csv", "xlsx"):
             destination = project_parent / f"冻结结果.{format_name}"
-            export = subprocess.run([str(sidecar_path)], input=request(f"frozen-export-{format_name}", "frequency.export", {"project_path": project_path, "destination": str(destination), "format": format_name}) + "\n", capture_output=True, check=False, env=environment, text=True, timeout=30)
+            export = subprocess.run(
+                [str(sidecar_path)],
+                input=request(
+                    f"frozen-export-{format_name}",
+                    "frequency.export",
+                    {
+                        "project_path": project_path,
+                        "destination": str(destination),
+                        "format": format_name,
+                    },
+                )
+                + "\n",
+                capture_output=True,
+                check=False,
+                env=environment,
+                text=True,
+                timeout=30,
+            )
             if export.returncode != 0 or not destination.is_file():
-                raise AssertionError(f"Frozen {format_name} export failed: {export.stdout} {export.stderr}")
+                raise AssertionError(
+                    f"Frozen {format_name} export failed: {export.stdout} {export.stderr}"
+                )
 
     # Keep diagnostic crash verification separate because it intentionally terminates the process.
-    input_lines = [request("frozen-describe", "system.describe", {}), request("frozen-diagnostic", "diagnostic.run", {"steps": 2, "delay_ms": 0})]
+    input_lines = [
+        request("frozen-describe", "system.describe", {}),
+        request("frozen-diagnostic", "diagnostic.run", {"steps": 2, "delay_ms": 0}),
+    ]
     completed = subprocess.run(
         [str(sidecar_path)],
         input="\n".join(input_lines) + "\n",
