@@ -10,6 +10,12 @@
 
 结论：这是 production frozen-sidecar stopword/frequency workflow blocking issue，同时包含 workspace UX issues。修复前不执行 SCOPE v1 方法验证，也不进入 TF-IDF；修复后必须以 Windows production artifact 重新执行本清单，作为 UAT #2。
 
+## Pre-UAT correction checklist
+
+- 原生 Tauri `minWidth=980`，与 CSS workspace minimum 一致。
+- Corpus sidebar 持续显示；右侧 workspace 按“文本 / 清洗 / 分词 / 词频”条件渲染，不通过 CSS 隐藏整页冒充标签。
+- SCOPE v1 Draft 为 86 个 exact tokens；`已经` 与 `已經` 分别计数。
+
 1. 打开一个已有有效 token 的项目，确认默认 profile 显示 `SCOPE 中文通用停用词表 v1`、`Draft` 和生效词数。
 2. 依次切换“不使用停用词”、goto456、哈工大、百度、四川大学和项目自定义，确认 profile 名称、版本、词数变化且 token 不重新生成。
 3. 增加一个词、删除该 addition；点击实际词表中的内置词将其加入 exclusions；关闭并重新打开项目，确认 additions/exclusions/resolved set 恢复。

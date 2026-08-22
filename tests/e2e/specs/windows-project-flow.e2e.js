@@ -54,5 +54,26 @@ describe("SCOPE Milestone 1A main flow", () => {
     await expect($(".text-preview")).toHaveText(
       "政策执行需要同时关注制度设计与基层实践。",
     );
+
+    // Workspace wiring smoke: each tab renders its own right-hand content while the corpus remains available.
+    await expect($("nav[aria-label='研究工作区']")).toExist();
+    await $("button=清洗").click();
+    await expect($("[aria-label='文本清洗']")).toExist();
+    await $("button=分词").click();
+    await expect($("[aria-label='中文分词']")).toExist();
+    await $("button=词频").click();
+    await expect($("[aria-label='词频分析']")).toExist();
+    await browser.waitUntil(async () => (await $("select").isExisting()), {
+      timeout: 30_000,
+      interval: 500,
+    });
+    const profileSelect = $(".stopword-controls select");
+    await expect(profileSelect).toExist();
+    await expect(profileSelect).toHaveValue("scope-cn-general-v1");
+    const options = await profileSelect.$$("option");
+    expect(options.length).toBeGreaterThanOrEqual(7);
+    await expect($("button=导出 CSV")).toExist();
+    await expect($("button=导出 XLSX")).toExist();
+    await expect($("button=停用词优化助手")).toExist();
   });
 });

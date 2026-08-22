@@ -109,6 +109,9 @@ class FrequencyAnalysisTest(unittest.TestCase):
             item for item in available_profiles() if item["profile_id"] == "scope-cn-general-v1"
         )
         self.assertEqual(scope["status"], "draft")
+        self.assertEqual(scope["count"], 86)
+        self.assertIn("已经", resolve_stopwords()["resolved_stopwords"])
+        self.assertIn("已經", resolve_stopwords()["resolved_stopwords"])
 
 
 if __name__ == "__main__":

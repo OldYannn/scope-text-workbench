@@ -6,7 +6,7 @@
 
 ## 方法
 
-当前 SCOPE v1 冻结词数为 85（去重后，UTF-8 文本中的非注释非空行），状态为 `draft`，不是已经充分外部验证的 Public Alpha 词表。逐词来源与筛选说明见 provenance matrix。
+当前 SCOPE v1 冻结词数为 86（去重后，UTF-8 文本中的非注释非空行），状态为 `draft`，不是已经充分外部验证的 Public Alpha 词表。`已经` 与 `已經` 在 exact-token 模型下是两个独立 token。逐词来源与筛选说明见 provenance matrix。
 
 分词完成后，保存的结构化 token sequence 是不可变基础数据。停用词是下游 filter：`tokens -> eligibility -> exact-token stopword filter -> frequency analysis`。只按完整 token 精确匹配，因此停用词 `的` 不会影响 `目的地` 或 `的确`。基础 token eligibility 默认过滤空字符串、空白和纯标点/符号；中文词、英文/字母、数字和单字词都保留。
 

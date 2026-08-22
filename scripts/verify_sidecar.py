@@ -59,7 +59,7 @@ def verify(sidecar_path: Path) -> None:
             raise AssertionError(f"stopwords.profiles failed in frozen sidecar: {messages}")
         profiles = by_id["frozen-profiles"]["result"]["profiles"]
         expected_profiles = {
-            "scope-cn-general-v1": ("SCOPE 中文通用停用词表 v1", 85, "draft"),
+            "scope-cn-general-v1": ("SCOPE 中文通用停用词表 v1", 86, "draft"),
             "goto456-general": ("goto456 中文通用停用词表", 746, "reference"),
             "hit": ("哈工大停用词表", 749, "reference"),
             "baidu": ("百度停用词表", 1395, "reference"),

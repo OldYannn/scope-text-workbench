@@ -891,7 +891,7 @@ function App() {
         </ul>
       )}
 
-      <section className={`corpus-workspace workspace-tab-${workspaceTab}`}>
+      <section className="corpus-workspace">
         <div className="document-panel">
           <div className="panel-heading">
             <div>
@@ -953,6 +953,7 @@ function App() {
           </div>
           {selectedDocument ? (
             <>
+              {workspaceTab === "cleaning" && <>
               <div className="cleaning-toolbar" aria-label="文本清洗">
                 <strong>文本清洗</strong>
                 {(
@@ -1020,7 +1021,8 @@ function App() {
               <p className="cleaning-note">
                 清洗结果保存为分析文本，不会修改原始语料。
               </p>
-              <div className="text-preview-grid">
+              </>}
+              {(workspaceTab === "text" || workspaceTab === "cleaning") && <div className="text-preview-grid">
                 <div>
                   <small>原始文本（只读）</small>
                   <pre className="text-preview">
@@ -1035,7 +1037,8 @@ function App() {
                       "尚未执行清洗"}
                   </pre>
                 </div>
-              </div>
+              </div>}
+              {workspaceTab === "tokenize" && <>
               <div className="tokenization-toolbar" aria-label="中文分词">
                 <strong>中文分词</strong>
                 <span>标准分词（推荐）</span>
@@ -1094,6 +1097,7 @@ function App() {
                   <small>尚未运行分词</small>
                 )}
               </div>
+              </>}
             </>
           ) : (
             <div className="preview-placeholder">
@@ -1103,7 +1107,7 @@ function App() {
           )}
         </article>
       </section>
-      <section className={`frequency-panel workspace-tab-${workspaceTab}`} aria-label="词频分析">
+      {workspaceTab === "frequency" && <section className="frequency-panel" aria-label="词频分析">
         <div className="panel-heading">
           <div>
             <p className="kicker">FREQUENCY / 词频</p>
@@ -1388,7 +1392,7 @@ function App() {
             <small>请先完成词频分析。</small>
           </div>
         )}
-      </section>
+      </section>}
     </main>
   );
 }

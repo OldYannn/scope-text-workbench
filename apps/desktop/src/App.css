@@ -22,12 +22,6 @@
 .workspace-tabs button.active { color: var(--cobalt); border-bottom-color: var(--cobalt); }
 .feature-error { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; margin-bottom: 12px; background: #fff0eb; border: 1px solid var(--orange); color: #8f2e18; }
 
-/* Keep the desktop workspace focused while preserving state between tabs. */
-.workspace-tab-frequency.corpus-workspace { display: none; }
-.workspace-tab-text.frequency-panel,
-.workspace-tab-cleaning.frequency-panel,
-.workspace-tab-tokenize.frequency-panel { display: none; }
-
 * {
   box-sizing: border-box;
 }
