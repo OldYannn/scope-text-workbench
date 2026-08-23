@@ -278,22 +278,25 @@ def verify(sidecar_path: Path) -> None:
                 )
             if format_name == "xlsx":
                 workbook = load_workbook(destination, read_only=True, data_only=True)
-                if workbook.sheetnames != ["词频结果", "分析说明"]:
-                    raise AssertionError(
-                        f"Frozen XLSX has wrong sheets: {workbook.sheetnames}"
+                try:
+                    if workbook.sheetnames != ["词频结果", "分析说明"]:
+                        raise AssertionError(
+                            f"Frozen XLSX has wrong sheets: {workbook.sheetnames}"
+                        )
+                    expected_header = (
+                        "词语",
+                        "词频（TF）",
+                        "文档频率（DF）",
+                        "文档覆盖率",
+                        "标准化词频（每万词，RF10K）",
                     )
-                expected_header = (
-                    "词语",
-                    "词频（TF）",
-                    "文档频率（DF）",
-                    "文档覆盖率",
-                    "标准化词频（每万词，RF10K）",
-                )
-                actual_header = next(workbook["词频结果"].values)
-                if actual_header != expected_header:
-                    raise AssertionError(
-                        f"Frozen XLSX has wrong header: {actual_header}"
-                    )
+                    actual_header = next(workbook["词频结果"].values)
+                    if actual_header != expected_header:
+                        raise AssertionError(
+                            f"Frozen XLSX has wrong header: {actual_header}"
+                        )
+                finally:
+                    workbook.close()
 
     # Keep diagnostic crash verification separate because it intentionally terminates the process.
     input_lines = [

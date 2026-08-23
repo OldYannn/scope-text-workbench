@@ -52,6 +52,7 @@ try {
           "assert next(workbook['词频结果'].values) == ('词语', '词频（TF）', '文档频率（DF）', '文档覆盖率', '标准化词频（每万词，RF10K）')",
           "rows = list(workbook['词频结果'].values)",
           "assert len(rows) > 1",
+          "workbook.close()",
         ].join("; "),
         exportedXlsx,
       ],

@@ -77,24 +77,28 @@ class FrequencyAnalysisTest(unittest.TestCase):
                 )
             xlsx_path = export_xlsx(result, Path(directory) / "词频.xlsx")
             workbook = load_workbook(xlsx_path, read_only=True, data_only=True)
-            self.assertEqual(workbook.sheetnames, ["词频结果", "分析说明"])
-            rows = list(workbook["词频结果"].values)
-            self.assertEqual(
-                rows[0],
-                (
-                    "词语",
-                    "词频（TF）",
-                    "文档频率（DF）",
-                    "文档覆盖率",
-                    "标准化词频（每万词，RF10K）",
-                ),
-            )
-            self.assertEqual(rows[1][0:3], ("党", 3, 2))
-            info = dict(workbook["分析说明"].values)
-            self.assertEqual(
-                info["RF10K definition"], "RF10K(w) = TF(w) / EffectiveTokenCount * 10000"
-            )
-            self.assertIn("实际参与本次统计", info["EffectiveTokenCount"])
+            try:
+                self.assertEqual(workbook.sheetnames, ["词频结果", "分析说明"])
+                rows = list(workbook["词频结果"].values)
+                self.assertEqual(
+                    rows[0],
+                    (
+                        "词语",
+                        "词频（TF）",
+                        "文档频率（DF）",
+                        "文档覆盖率",
+                        "标准化词频（每万词，RF10K）",
+                    ),
+                )
+                self.assertEqual(rows[1][0:3], ("党", 3, 2))
+                info = dict(workbook["分析说明"].values)
+                self.assertEqual(
+                    info["RF10K definition"],
+                    "RF10K(w) = TF(w) / EffectiveTokenCount * 10000",
+                )
+                self.assertIn("实际参与本次统计", info["EffectiveTokenCount"])
+            finally:
+                workbook.close()
 
     def test_project_frequency_accepts_profile_config(self):
         fixture_path = Path(__file__).parent / "fixtures" / "corpus" / "frequency-gui.txt"
