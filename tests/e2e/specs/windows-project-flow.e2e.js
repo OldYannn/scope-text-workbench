@@ -201,6 +201,29 @@ describe("SCOPE Milestone 1A main flow", () => {
     expect(frequencyRow?.[1]).toBe("3");
     expect(frequencyRow?.[2]).toBe("2");
 
+    await $("button=指标说明").click();
+    await expect($(".metric-popover")).toHaveText(
+      expect.stringContaining("RF10K(w) = TF(w)"),
+    );
+    await browser.keys("Escape");
+    await expect($(".metric-popover")).not.toExist();
+
+    await $("button=停用词优化助手").click();
+    await expect($(".drawer-content")).toHaveText(
+      expect.stringContaining("停用词优化助手"),
+    );
+    await expect($(".frequency-table")).toExist();
+    await $("button=关闭").click();
+    await expect($(".drawer-content")).not.toExist();
+
+    await $("button=查看实际词表").click();
+    await expect($(".drawer-content")).toHaveText(
+      expect.stringContaining("当前停用词集合"),
+    );
+    await expect($(".frequency-table")).toExist();
+    await $("button=关闭").click();
+    await expect($(".drawer-content")).not.toExist();
+
     await $("input[aria-label='手动增加停用词']").setValue("需要");
     await $("button=增加").click();
     await expect($(".stale-result-banner")).toHaveText(

@@ -1,4 +1,11 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -15,6 +22,14 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn().mockResolvedValue(() => undefined),
 }));
+
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 
 const emptyProject = {
   project_id: "project-1",
@@ -319,6 +334,13 @@ describe("Milestone 1A project workflow", () => {
     await user.click(screen.getByRole("button", { name: "创建项目" }));
     await user.click(screen.getByRole("button", { name: /访谈一\.txt/ }));
     await user.click(screen.getByRole("button", { name: "词频" }));
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "计算 TF / DF / RF10K",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
     await user.click(
       screen.getByRole("button", { name: "计算 TF / DF / RF10K" }),
     );
@@ -340,10 +362,19 @@ describe("Milestone 1A project workflow", () => {
       }),
     ).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "？ 指标说明" }));
+    await user.click(screen.getByRole("button", { name: "指标说明" }));
+    expect(screen.getByRole("heading", { name: "词频指标说明" })).toBeTruthy();
     expect(screen.getByText(/RF10K\(w\) = TF\(w\)/)).toBeTruthy();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("heading", { name: "词频指标说明" })).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "查看实际词表" }));
+    expect(
+      screen.getByRole("heading", { name: "当前停用词集合" }),
+    ).toBeTruthy();
+    expect(
+      globalThis.document.querySelector(".frequency-table"),
+    ).not.toBeNull();
     const resolvedViewer = screen.getByLabelText("实际停用词集合");
     await user.click(within(resolvedViewer).getByText("的"));
     expect(screen.queryByText(/待应用修改/)).toBeNull();
@@ -351,18 +382,32 @@ describe("Milestone 1A project workflow", () => {
       within(resolvedViewer).getByRole("button", { name: "保留该词" }),
     );
     expect(screen.getByText("待应用修改：1 项")).toBeTruthy();
+    const resolvedDrawer = screen.getByRole("dialog", {
+      name: "当前停用词集合",
+    });
+    await user.click(screen.getByRole("button", { name: "关闭" }));
+    fireEvent.animationEnd(resolvedDrawer);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "当前停用词集合" }),
+      ).toBeNull(),
+    );
     await user.click(screen.getByRole("button", { name: "的 ×" }));
     expect(screen.queryByText(/待应用修改/)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "停用词优化助手" }));
-    const optimization = globalThis.document.querySelector(
-      ".optimization-panel",
-    );
+    expect(
+      screen.getByRole("heading", { name: "停用词优化助手" }),
+    ).toBeTruthy();
+    expect(
+      globalThis.document.querySelector(".frequency-table"),
+    ).not.toBeNull();
+    const optimization = globalThis.document.querySelector(".drawer-content");
     expect(optimization).not.toBeNull();
     const candidateRows = optimization!.querySelectorAll(".candidate-row");
     await user.click(
       within(candidateRows[0] as HTMLElement).getByRole("button", {
-        name: "加入项目停用词",
+        name: "加入待处理停用词",
       }),
     );
     await user.click(
@@ -393,6 +438,16 @@ describe("Milestone 1A project workflow", () => {
       within(candidateRows[1] as HTMLElement).getByRole("button", {
         name: "撤销",
       }),
+    );
+    const optimizationDrawer = screen.getByRole("dialog", {
+      name: "停用词优化助手",
+    });
+    await user.click(screen.getByRole("button", { name: "关闭" }));
+    fireEvent.animationEnd(optimizationDrawer);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "停用词优化助手" }),
+      ).toBeNull(),
     );
 
     await user.type(screen.getByLabelText("手动增加停用词"), "基层治理");

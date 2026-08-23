@@ -52,6 +52,8 @@ ASF 要求 ASF 自身的软件发行物包含 `NOTICE`，但 ASF 官方政策明
 | Tauri Rust、tauri-build     | Cargo lock 为 `2.11.5`、`2.6.3` | crates.io/Cargo package metadata 为 `Apache-2.0 OR MIT`。[tauri crate](https://crates.io/crates/tauri)、[tauri-build crate](https://crates.io/crates/tauri-build) | 未发现明显冲突                           |
 | serde_json                  | Cargo lock 为 `1.0.151`         | Cargo package metadata 为 `MIT OR Apache-2.0`。[serde_json 官方仓库](https://github.com/serde-rs/json)                                                            | 未发现明显冲突                           |
 | tauri-plugin-wdio-webdriver | 测试专用，锁定 `1.3.0`          | Cargo package metadata为 MIT。[WebdriverIO desktop-mobile 官方仓库](https://github.com/webdriverio/desktop-mobile)                                                | 未发现明显冲突；仍须保持 test-only 隔离  |
+| Radix Dialog / Popover / Tooltip | `1.1.23` / `1.1.23` / `1.2.16` | npm registry metadata 均为 MIT；用于 Portal、焦点管理和键盘交互。[Radix Primitives](https://www.radix-ui.com/primitives) | 与 Apache-2.0 集成未发现明显冲突；按需引入三个 primitives |
+| Lucide React | `1.33.0` | npm registry metadata 为 ISC；图标库采用 ISC License。[Lucide](https://lucide.dev/license) | ISC 为宽松许可证，未发现明显冲突；Vite 按使用图标 tree-shake |
 
 ### 4.2 JavaScript 开发与 GUI E2E 工具
 
@@ -60,6 +62,8 @@ ASF 要求 ASF 自身的软件发行物包含 `NOTICE`，但 ASF 官方政策明
 Windows GUI E2E 的 WebdriverIO 直接依赖（`@wdio/cli`、`@wdio/globals`、`@wdio/local-runner`、`@wdio/mocha-framework`、`@wdio/spec-reporter`、`@wdio/tauri-service`、`webdriverio`）在锁定版本的 npm metadata 中均为 MIT。[WebdriverIO 官方仓库](https://github.com/webdriverio/webdriverio)、[desktop-mobile 官方仓库](https://github.com/webdriverio/desktop-mobile)
 
 E2E lockfile 中覆盖的 `serialize-javascript 7.0.5` 为 BSD-3-Clause。[npm registry metadata](https://registry.npmjs.org/serialize-javascript/7.0.5) 未发现明显 Apache-2.0 发布冲突。
+
+UX-1A 在 2026-08-24 的本地 production Vite build 中输出 JS `313.71 kB`（gzip `100.17 kB`）和 CSS `17.23 kB`（gzip `4.33 kB`）。这是引入三个按需 Radix primitives 与使用到的 Lucide 图标后的可复核快照，不应与未在同一环境保存的旧构建作伪精确比较；后续 UI 依赖变更应再次记录同一命令的输出。
 
 ### 4.3 Python 构建与开发工具
 

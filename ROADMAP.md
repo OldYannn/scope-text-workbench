@@ -120,6 +120,19 @@ Milestone 1B 已完成，分词只允许使用明确保存的 `analysis_text`；
 
 未来方向仅完成架构记录：Interactive Token Correction 通过项目词典/纠正规则后重新分词；Analysis Exclusion Masks 在 cleaned text 与 effective analysis text 之间提供可见、可撤销、带 hash 的排除层。本轮不实现自由 token 编辑、forced split 或 exclusion mask。
 
+### UX-1A — UI Interaction Foundation
+
+本切片只建立可复用的桌面交互基础，不修改 Python 分析逻辑、Tauri ↔ Python protocol、数据模型、词频或停用词方法。
+
+- [x] 建立 Primary / Secondary / Ghost / Icon Button primitives，以及统一 disabled、hover、active 和 `focus-visible` 状态
+- [x] 引入并固定 Radix Dialog / Popover / Tooltip 与 Lucide React；新增依赖许可证已记录
+- [x] 将词频指标说明迁移为 Radix Popover
+- [x] 将停用词优化助手和实际词表迁移为不挤压主结果的右侧 Drawer
+- [x] 保持 pending stopword draft、stale result、导出和重新计算语义
+- [x] 引入轻量成功 notification；错误和长任务状态仍保留在各自 workspace
+- [x] 扩展 React 测试与 Windows GUI E2E 脚本，覆盖 Popover / Drawer 与主表保留
+- [ ] 在本轮 commit 的 CI 和 Windows Project Owner UAT 中验证
+
 后续将按照 `PROJECT_BRIEF.md` 依次推进中文分词与词频分析、共现分析、研究审计链、可选模型 Provider、实验性 AI 编码和首个 Public Alpha。
 
 宣布任何 Milestone 完成前，都必须通过 `AGENTS.md` 规定的构建、测试、格式、文档、隐私和可复现性检查。
