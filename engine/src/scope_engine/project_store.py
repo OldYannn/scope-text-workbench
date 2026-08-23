@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import tempfile
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -229,7 +230,8 @@ def _load_metadata(project_path: Path) -> dict[str, Any]:
 
 
 def _document_summary(row: sqlite3.Row) -> dict[str, Any]:
-    return {
+    fields = set(row.keys())
+    summary = {
         "document_id": row["document_id"],
         "original_filename": row["original_filename"],
         "source_path": row["source_path"],
@@ -241,6 +243,11 @@ def _document_summary(row: sqlite3.Row) -> dict[str, Any]:
         "encoding": row["encoding"],
         "import_status": row["import_status"],
     }
+    if "cleaned_at" in fields:
+        summary["is_cleaned"] = row["cleaned_at"] is not None
+    if "tokens_json" in fields:
+        summary["is_tokenized"] = row["tokens_json"] is not None
+    return summary
 
 
 def _project_summary(project_path: Path, metadata: dict[str, Any]) -> dict[str, Any]:
@@ -250,7 +257,9 @@ def _project_summary(project_path: Path, metadata: dict[str, Any]) -> dict[str, 
                 """
                 SELECT COUNT(*) AS document_count,
                        COALESCE(SUM(character_count), 0) AS total_characters,
-                       MAX(imported_at) AS last_imported_at
+                       MAX(imported_at) AS last_imported_at,
+                       SUM(CASE WHEN cleaned_at IS NOT NULL THEN 1 ELSE 0 END) AS cleaned_count,
+                       SUM(CASE WHEN tokens_json IS NOT NULL THEN 1 ELSE 0 END) AS tokenized_count
                 FROM documents
                 """
             ).fetchone()
@@ -268,6 +277,8 @@ def _project_summary(project_path: Path, metadata: dict[str, Any]) -> dict[str, 
         "document_count": row["document_count"],
         "total_characters": row["total_characters"],
         "last_imported_at": row["last_imported_at"],
+        "cleaned_count": row["cleaned_count"] or 0,
+        "tokenized_count": row["tokenized_count"] or 0,
     }
 
 
@@ -337,7 +348,7 @@ def open_project(project_path_value: object) -> dict[str, Any]:
                 """
                 SELECT document_id, original_filename, source_path, imported_at,
                        character_count, file_size, input_hash, file_format,
-                       encoding, import_status
+                       encoding, import_status, cleaned_at, tokens_json
                 FROM documents
                 ORDER BY imported_at DESC, original_filename COLLATE NOCASE
                 """
@@ -618,7 +629,7 @@ def clean_execute(project_path_value: object, document_id: object, rules: object
     }
     with _connect(project_path) as connection:
         connection.execute(
-            "UPDATE documents SET analysis_text = ?, cleaning_config_json = ?, cleaning_manifest_json = ?, cleaned_at = ? WHERE document_id = ?",
+            "UPDATE documents SET analysis_text = ?, cleaning_config_json = ?, cleaning_manifest_json = ?, cleaned_at = ?, tokens_json = NULL, tokenization_manifest_json = NULL WHERE document_id = ?",
             (
                 preview["analysis_text"],
                 json.dumps(preview["rules"], ensure_ascii=False),
@@ -631,8 +642,68 @@ def clean_execute(project_path_value: object, document_id: object, rules: object
             "INSERT INTO audit_events (event_id, event_type, created_at, manifest_json) VALUES (?, ?, ?, ?)",
             (str(uuid.uuid4()), "text.clean", cleaned_at, json.dumps(manifest, ensure_ascii=False)),
         )
+        connection.execute("UPDATE frequency_analyses SET valid = 0")
         connection.commit()
     return {**preview, "cleaned_at": cleaned_at, "cleaning_manifest": manifest}
+
+
+def clean_batch(
+    project_path_value: object,
+    rules: object,
+    *,
+    reprocess_all: bool = False,
+    is_cancelled: Callable[[], bool] | None = None,
+    on_progress: Callable[[int, int, str], None] | None = None,
+) -> dict[str, Any]:
+    if not isinstance(rules, dict) or not isinstance(reprocess_all, bool):
+        raise ProjectError("invalid_params", "batch cleaning requires rules and reprocess_all")
+    project_path = Path(str(project_path_value)).expanduser().resolve()
+    _load_metadata(project_path)
+    with _connect(project_path) as connection:
+        rows = connection.execute(
+            "SELECT document_id, original_filename, cleaned_at FROM documents ORDER BY imported_at, document_id"
+        ).fetchall()
+    eligible = [row for row in rows if reprocess_all or row["cleaned_at"] is None]
+    entries: list[dict[str, Any]] = []
+    total = len(eligible)
+    for current, row in enumerate(eligible, 1):
+        if is_cancelled and is_cancelled():
+            break
+        try:
+            result = clean_execute(str(project_path), row["document_id"], rules)
+        except ProjectError as error:
+            entries.append(
+                {
+                    "document_id": row["document_id"],
+                    "filename": row["original_filename"],
+                    "status": "failed",
+                    "error": {"code": error.code, "message": error.message},
+                }
+            )
+        else:
+            entries.append(
+                {
+                    "document_id": row["document_id"],
+                    "filename": row["original_filename"],
+                    "status": "succeeded",
+                    "cleaned_at": result["cleaned_at"],
+                }
+            )
+        if on_progress:
+            on_progress(current, total, f"正在清洗 {current} / {total} 篇文档")
+    succeeded = sum(entry["status"] == "succeeded" for entry in entries)
+    failed = len(entries) - succeeded
+    return {
+        "operation": "text.clean.batch",
+        "total_document_count": len(rows),
+        "eligible_document_count": total,
+        "processed_document_count": len(entries),
+        "succeeded_count": succeeded,
+        "failed_count": failed,
+        "cancelled": len(entries) < total,
+        "entries": entries,
+        "project": _project_summary(project_path, _load_metadata(project_path)),
+    }
 
 
 TOKENIZATION_IMPLEMENTATION_VERSION = "1"
@@ -674,7 +745,29 @@ def import_user_dictionary(project_path_value: object, source_value: object) -> 
             "SELECT * FROM user_dictionaries WHERE file_hash = ?", (file_hash,)
         ).fetchone()
         if duplicate is not None:
-            return {"dictionary": _dictionary_summary(duplicate), "status": "existing"}
+            invalidated_document_count = 0
+            tokenized_rows = connection.execute(
+                "SELECT document_id, tokenization_manifest_json FROM documents "
+                "WHERE tokens_json IS NOT NULL"
+            ).fetchall()
+            for document in tokenized_rows:
+                manifest = json.loads(document["tokenization_manifest_json"] or "{}")
+                if manifest.get("user_dictionary_id") == duplicate["dictionary_id"]:
+                    continue
+                connection.execute(
+                    "UPDATE documents SET tokens_json = NULL, tokenization_manifest_json = NULL "
+                    "WHERE document_id = ?",
+                    (document["document_id"],),
+                )
+                invalidated_document_count += 1
+            if invalidated_document_count:
+                connection.execute("UPDATE frequency_analyses SET valid = 0")
+            connection.commit()
+            return {
+                "dictionary": _dictionary_summary(duplicate),
+                "status": "existing",
+                "invalidated_document_count": invalidated_document_count,
+            }
         dictionary_id = str(uuid.uuid4())
         stored_path = f"dictionaries/{dictionary_id}.txt"
         stored = project_path / stored_path
@@ -689,6 +782,7 @@ def import_user_dictionary(project_path_value: object, source_value: object) -> 
         connection.execute(
             "UPDATE documents SET tokens_json = NULL, tokenization_manifest_json = NULL"
         )
+        connection.execute("UPDATE frequency_analyses SET valid = 0")
         manifest = {
             "operation": "tokenization.dictionary_import",
             "project_id": metadata["project_id"],
@@ -813,8 +907,75 @@ def tokenize_execute(
                 json.dumps(manifest, ensure_ascii=False),
             ),
         )
+        connection.execute("UPDATE frequency_analyses SET valid = 0")
         connection.commit()
     return {**preview, "executed_at": executed_at}
+
+
+def tokenize_batch(
+    project_path_value: object,
+    config: object,
+    *,
+    reprocess_all: bool = False,
+    is_cancelled: Callable[[], bool] | None = None,
+    on_progress: Callable[[int, int, str], None] | None = None,
+) -> dict[str, Any]:
+    if not isinstance(config, dict) or not isinstance(reprocess_all, bool):
+        raise ProjectError("invalid_params", "batch tokenization requires config and reprocess_all")
+    project_path = Path(str(project_path_value)).expanduser().resolve()
+    _load_metadata(project_path)
+    with _connect(project_path) as connection:
+        rows = connection.execute(
+            "SELECT document_id, original_filename, analysis_text, tokens_json FROM documents ORDER BY imported_at, document_id"
+        ).fetchall()
+    eligible = [
+        row
+        for row in rows
+        if row["analysis_text"] is not None and (reprocess_all or row["tokens_json"] is None)
+    ]
+    skipped_missing = [row["document_id"] for row in rows if row["analysis_text"] is None]
+    entries: list[dict[str, Any]] = []
+    total = len(eligible)
+    for current, row in enumerate(eligible, 1):
+        if is_cancelled and is_cancelled():
+            break
+        try:
+            result = tokenize_execute(str(project_path), row["document_id"], config)
+        except ProjectError as error:
+            entries.append(
+                {
+                    "document_id": row["document_id"],
+                    "filename": row["original_filename"],
+                    "status": "failed",
+                    "error": {"code": error.code, "message": error.message},
+                }
+            )
+        else:
+            entries.append(
+                {
+                    "document_id": row["document_id"],
+                    "filename": row["original_filename"],
+                    "status": "succeeded",
+                    "token_count": len(result["tokens"]),
+                }
+            )
+        if on_progress:
+            on_progress(current, total, f"正在分词 {current} / {total} 篇文档")
+    succeeded = sum(entry["status"] == "succeeded" for entry in entries)
+    failed = len(entries) - succeeded
+    return {
+        "operation": "text.tokenize.batch",
+        "total_document_count": len(rows),
+        "eligible_document_count": total,
+        "processed_document_count": len(entries),
+        "succeeded_count": succeeded,
+        "failed_count": failed,
+        "skipped_missing_analysis_text_count": len(skipped_missing),
+        "skipped_missing_analysis_text_ids": skipped_missing,
+        "cancelled": len(entries) < total,
+        "entries": entries,
+        "project": _project_summary(project_path, _load_metadata(project_path)),
+    }
 
 
 def get_stopword_profiles() -> list[dict[str, Any]]:
@@ -940,6 +1101,7 @@ def frequency_execute(
         analysis_id=analysis_id,
     )
     result["manifest"]["project_id"] = metadata["project_id"]
+    result["manifest"]["project_name"] = metadata["name"]
     digest = result_hash(result)
     with _connect(project_path) as connection:
         connection.execute(

@@ -12,6 +12,10 @@ vi.mock("@tauri-apps/api/core", () => ({
   isTauri: () => true,
 }));
 
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn().mockResolvedValue(() => undefined),
+}));
+
 const emptyProject = {
   project_id: "project-1",
   name: "基层治理访谈",
@@ -119,6 +123,16 @@ describe("Milestone 1A project workflow", () => {
 
     await user.click(screen.getByRole("button", { name: /访谈一\.txt/ }));
     expect(await screen.findByText("真实访谈文本内容")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "清洗" }));
+    await user.click(screen.getByRole("button", { name: "重新清洗全部文档" }));
+    expect(screen.getByText(/重新清洗将更新分析文本/)).toBeTruthy();
+    expect(
+      mocks.invoke.mock.calls.some(
+        ([command]) => command === "text_clean_batch",
+      ),
+    ).toBe(false);
+    await user.click(screen.getByRole("button", { name: "取消" }));
   });
 
   it("opens an existing project and restores its saved document list", async () => {
@@ -159,6 +173,7 @@ describe("Milestone 1A project workflow", () => {
   });
 
   it("renders a successful frequency response in the active workspace", async () => {
+    let frequencyCalls = 0;
     const frequency = {
       rows: [
         {
@@ -169,7 +184,29 @@ describe("Milestone 1A project workflow", () => {
           rf10k: 5000,
         },
       ],
-      candidates: [],
+      candidates: [
+        {
+          token: "进行",
+          tf: 8,
+          df: 1,
+          document_coverage: 1,
+          rf10k: 20000,
+        },
+        {
+          token: "相关",
+          tf: 6,
+          df: 1,
+          document_coverage: 1,
+          rf10k: 15000,
+        },
+        {
+          token: "本文",
+          tf: 4,
+          df: 1,
+          document_coverage: 1,
+          rf10k: 10000,
+        },
+      ],
       manifest: {
         included_document_count: 1,
         excluded_document_ids: [],
@@ -191,7 +228,7 @@ describe("Milestone 1A project workflow", () => {
         resolved_stopword_hash: "hash",
       },
     };
-    mocks.invoke.mockImplementation((command: string) => {
+    mocks.invoke.mockImplementation((command: string, payload?: unknown) => {
       if (command === "e2e_paths") return Promise.reject(new Error("none"));
       if (command === "select_project_parent") return Promise.resolve("/研究");
       if (command === "project_create")
@@ -236,7 +273,43 @@ describe("Milestone 1A project workflow", () => {
           },
         });
       if (command === "frequency_analyze")
-        return Promise.resolve({ type: "result", result: frequency });
+        return Promise.resolve({
+          type: "result",
+          result:
+            frequencyCalls++ === 0
+              ? frequency
+              : {
+                  ...frequency,
+                  rows: [],
+                  candidates: [],
+                  profile: {
+                    ...frequency.profile,
+                    custom_additions: ["进行", "基层治理"],
+                    resolved_stopwords: ["的", "进行", "基层治理"],
+                  },
+                },
+        });
+      if (command === "stopword_resolve") {
+        const config = payload as {
+          baseProfileId: string;
+          customAdditions: string[];
+          customExclusions: string[];
+        };
+        return Promise.resolve({
+          type: "result",
+          result: {
+            profile: {
+              ...frequency.profile,
+              base_profile_id: config.baseProfileId,
+              custom_additions: config.customAdditions,
+              custom_exclusions: config.customExclusions,
+              resolved_stopwords: ["的", ...config.customAdditions].filter(
+                (word) => !config.customExclusions.includes(word),
+              ),
+            },
+          },
+        });
+      }
       throw new Error(`Unexpected command: ${command}`);
     });
 
@@ -258,5 +331,99 @@ describe("Milestone 1A project workflow", () => {
     expect(screen.getByRole("cell", { name: "基层治理" })).toBeTruthy();
     expect(screen.getByText("导出 CSV")).toBeTruthy();
     expect(screen.getByText("导出 XLSX")).toBeTruthy();
+    expect(
+      screen.getByRole("columnheader", { name: "词频（TF）" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("columnheader", {
+        name: "标准化词频（每万词，RF10K）",
+      }),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "？ 指标说明" }));
+    expect(screen.getByText(/RF10K\(w\) = TF\(w\)/)).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "查看实际词表" }));
+    const resolvedViewer = screen.getByLabelText("实际停用词集合");
+    await user.click(within(resolvedViewer).getByText("的"));
+    expect(screen.queryByText(/待应用修改/)).toBeNull();
+    await user.click(
+      within(resolvedViewer).getByRole("button", { name: "保留该词" }),
+    );
+    expect(screen.getByText("待应用修改：1 项")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "的 ×" }));
+    expect(screen.queryByText(/待应用修改/)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "停用词优化助手" }));
+    const optimization = globalThis.document.querySelector(
+      ".optimization-panel",
+    );
+    expect(optimization).not.toBeNull();
+    const candidateRows = optimization!.querySelectorAll(".candidate-row");
+    await user.click(
+      within(candidateRows[0] as HTMLElement).getByRole("button", {
+        name: "加入项目停用词",
+      }),
+    );
+    await user.click(
+      within(candidateRows[1] as HTMLElement).getByRole("button", {
+        name: "保留",
+      }),
+    );
+    await user.click(
+      within(candidateRows[2] as HTMLElement).getByRole("button", {
+        name: "忽略",
+      }),
+    );
+    expect(
+      within(candidateRows[0] as HTMLElement).getByText("待加入停用词"),
+    ).toBeTruthy();
+    expect(
+      within(candidateRows[1] as HTMLElement).getByText("保留"),
+    ).toBeTruthy();
+    expect(
+      within(candidateRows[2] as HTMLElement).getByText("忽略"),
+    ).toBeTruthy();
+    await user.click(
+      within(candidateRows[2] as HTMLElement).getByRole("button", {
+        name: "撤销",
+      }),
+    );
+    await user.click(
+      within(candidateRows[1] as HTMLElement).getByRole("button", {
+        name: "撤销",
+      }),
+    );
+
+    await user.type(screen.getByLabelText("手动增加停用词"), "基层治理");
+    await user.click(screen.getByRole("button", { name: "增加" }));
+    expect(screen.getByRole("cell", { name: "基层治理" })).toBeTruthy();
+    expect(screen.getByText("待应用修改：2 项")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "导出 CSV" }).hasAttribute("disabled"),
+    ).toBe(true);
+    expect(
+      mocks.invoke.mock.calls.filter(
+        ([command]) => command === "stopword_resolve",
+      ),
+    ).toHaveLength(0);
+
+    await user.click(
+      screen.getByRole("button", { name: "应用修改并重新计算" }),
+    );
+    expect(await screen.findByText(/过滤后没有可显示的词频结果/)).toBeTruthy();
+    expect(
+      mocks.invoke.mock.calls.filter(
+        ([command]) => command === "stopword_resolve",
+      ),
+    ).toHaveLength(1);
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      "stopword_resolve",
+      expect.objectContaining({
+        customAdditions: ["进行", "基层治理"],
+        customExclusions: [],
+      }),
+    );
+    expect(frequencyCalls).toBe(2);
   });
 });

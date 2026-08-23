@@ -9,6 +9,7 @@ from typing import Any
 from scope_engine import __version__
 from scope_engine.project_store import (
     ProjectError,
+    clean_batch,
     clean_execute,
     clean_preview,
     create_project,
@@ -23,6 +24,7 @@ from scope_engine.project_store import (
     import_user_dictionary,
     open_project,
     resolve_project_stopwords,
+    tokenize_batch,
     tokenize_execute,
     tokenize_preview,
 )
@@ -46,8 +48,10 @@ CAPABILITIES = sorted(
         "stopwords.resolve",
         "text.clean.preview",
         "text.clean.execute",
+        "text.clean.batch",
         "text.tokenize.preview",
         "text.tokenize.execute",
+        "text.tokenize.batch",
         "tokenization.dictionary.import",
         "system.describe",
     ]
@@ -230,6 +234,53 @@ def run_diagnostic(
             os._exit(71)
 
 
+def run_batch(
+    request_id: str,
+    method: str,
+    params: dict[str, Any],
+    cancel_event: threading.Event,
+) -> None:
+    def progress(current: int, total: int, message: str) -> None:
+        emit(
+            {
+                "protocol_version": PROTOCOL_VERSION,
+                "request_id": request_id,
+                "type": "progress",
+                "progress": {"current": current, "total": total, "message": message},
+            }
+        )
+
+    try:
+        if method == "text.clean.batch":
+            result = clean_batch(
+                params["project_path"],
+                params["rules"],
+                reprocess_all=params.get("reprocess_all", False),
+                is_cancelled=cancel_event.is_set,
+                on_progress=progress,
+            )
+        else:
+            result = tokenize_batch(
+                params["project_path"],
+                params.get("config", {}),
+                reprocess_all=params.get("reprocess_all", False),
+                is_cancelled=cancel_event.is_set,
+                on_progress=progress,
+            )
+        ACTIVE_TASKS.finish(request_id, cancel_event)
+        emit(result_response(request_id, result))
+    except ProjectError as error:
+        ACTIVE_TASKS.discard(request_id, cancel_event)
+        emit(error_response(error.code, error.message, request_id=request_id))
+    except Exception:
+        ACTIVE_TASKS.discard(request_id, cancel_event)
+        emit(
+            error_response(
+                "internal_error", "Batch operation failed unexpectedly", request_id=request_id
+            )
+        )
+
+
 def handle_request(request: Any) -> dict[str, Any] | None:
     validation_error = validate_request(request)
     if validation_error is not None:
@@ -353,6 +404,31 @@ def handle_request(request: Any) -> dict[str, Any] | None:
             )
     except ProjectError as error:
         return error_response(error.code, error.message, request_id=request_id)
+    if request["method"] in ("text.clean.batch", "text.tokenize.batch"):
+        params = request["params"]
+        required = (
+            {"project_path", "rules"}
+            if request["method"] == "text.clean.batch"
+            else {"project_path"}
+        )
+        if not required.issubset(params) or not isinstance(
+            params.get("reprocess_all", False), bool
+        ):
+            return error_response(
+                "invalid_params",
+                "batch operation requires project_path, configuration, and boolean reprocess_all",
+                request_id=request_id,
+            )
+        cancel_event = ACTIVE_TASKS.start(request_id)
+        if cancel_event is None:
+            return error_response(
+                "request_id_in_use", "request_id is already running", request_id=request_id
+            )
+        threading.Thread(
+            target=run_batch,
+            args=(request_id, request["method"], params, cancel_event),
+        ).start()
+        return None
     if request["method"] == "diagnostic.run":
         params_error = validate_diagnostic_params(request_id, request["params"])
         if params_error is not None:

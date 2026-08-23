@@ -121,6 +121,10 @@
 
 `params` 包含 `project_path`、`document_id` 和 `{mode, hmm, dictionary_id}`。两种方法都只读取文档的 `analysis_text`；未生成分析文本时返回 `analysis_text_missing`，不会回退到 `text`。`execute` 保存结构化 `tokens` 数组和 tokenizer manifest，记录 jieba 版本、模式、HMM、输入 hash、用户词典 hash、实现版本和执行时间。
 
+### `text.clean.batch` / `text.tokenize.batch`
+
+两者是可取消的长任务，使用既有 `progress` 消息报告 `current/total/message`。清洗参数包含 `project_path`、`rules`、`reprocess_all`；分词参数包含 `project_path`、`config`、`reprocess_all`。默认只处理 eligible 文档，rerun 必须显式传入；terminal result 报告 eligible、processed、succeeded、failed、cancelled、逐文档 entries 和项目状态。取消与单篇失败都保留已经提交的文档结果。
+
 ### `stopwords.profiles` / `stopwords.get` / `stopwords.resolve` / `stopwords.import`
 
 桌面端可以读取内置 profile、读取项目当前 resolved profile、保存 `base_profile_id`、`custom_additions`、`custom_exclusions`，以及导入 UTF-8 TXT。profile 变化只使 frequency result 失效，不修改 token sequence。

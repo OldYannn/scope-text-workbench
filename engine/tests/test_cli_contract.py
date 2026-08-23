@@ -17,6 +17,8 @@ sys.path.insert(0, str(SCRIPTS_ROOT))
 
 from verify_sidecar import decode_protocol_output  # noqa: E402
 
+from scope_engine.project_store import create_project, import_txt  # noqa: E402
+
 
 def invoke_engine(line: str) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
@@ -171,8 +173,10 @@ class SidecarProtocolContractTest(unittest.TestCase):
                         "stopwords.profiles",
                         "stopwords.resolve",
                         "system.describe",
+                        "text.clean.batch",
                         "text.clean.execute",
                         "text.clean.preview",
+                        "text.tokenize.batch",
                         "text.tokenize.execute",
                         "text.tokenize.preview",
                         "tokenization.dictionary.import",
@@ -325,6 +329,43 @@ class SidecarProtocolContractTest(unittest.TestCase):
         )
         self.assertEqual(by_request_id["diagnostic-cancel-target"]["type"], "error")
         self.assertEqual(by_request_id["diagnostic-cancel-target"]["error"]["code"], "cancelled")
+
+    def test_batch_clean_protocol_emits_progress_and_terminal_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sources = []
+            for index in range(2):
+                source = root / f"语料{index + 1}.txt"
+                source.write_text(f"基层治理语料 {index + 1}", encoding="utf-8")
+                sources.append(str(source))
+            project_path = create_project("批处理协议", str(root))["project"]["project_path"]
+            import_txt(project_path, sources)
+            request = {
+                "protocol_version": "0.1",
+                "request_id": "batch-clean-1",
+                "method": "text.clean.batch",
+                "params": {
+                    "project_path": project_path,
+                    "rules": {},
+                    "reprocess_all": False,
+                },
+            }
+
+            with EngineProcess() as engine:
+                engine.send(request)
+                responses = [engine.read() for _ in range(3)]
+
+        self.assertEqual(
+            [
+                (response["type"], response.get("progress", {}).get("current"))
+                for response in responses
+            ],
+            [("progress", 1), ("progress", 2), ("result", None)],
+        )
+        summary = responses[-1]["result"]
+        self.assertEqual(summary["eligible_document_count"], 2)
+        self.assertEqual(summary["succeeded_count"], 2)
+        self.assertFalse(summary["cancelled"])
 
     def test_diagnostic_crash_exits_process_without_terminal_message(self) -> None:
         request = {

@@ -1,4 +1,6 @@
 import { $, browser, expect } from "@wdio/globals";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
 async function waitForProjectWorkspace() {
   await browser.waitUntil(
@@ -50,6 +52,10 @@ describe("SCOPE Milestone 1A main flow", () => {
     await waitForProjectWorkspace();
     await $("[aria-label='导入 TXT']").click();
     await waitForImportedDocument();
+    await browser.waitUntil(
+      async () => $("button*=batch-frequency-2.txt").isExisting(),
+      { timeout: 60_000, interval: 1_000 },
+    );
     await $("button*=frequency-gui.txt").click();
     await expect($(".text-preview")).toHaveText(
       "基层治理需要政策支持。基层治理需要实践检验。",
@@ -134,9 +140,11 @@ describe("SCOPE Milestone 1A main flow", () => {
           (item) => item.textContent?.trim() === "执行清洗",
         ),
       );
-      clickButton("执行清洗");
+      clickButton("批量清洗");
       await waitFor(() =>
-        document.querySelector(".notice")?.textContent?.includes("清洗已保存"),
+        document
+          .querySelector(".notice")
+          ?.textContent?.includes("批量清洗已完成"),
       );
       clickButton("分词");
       await waitFor(() =>
@@ -144,11 +152,11 @@ describe("SCOPE Milestone 1A main flow", () => {
           (item) => item.textContent?.trim() === "重新运行分词",
         ),
       );
-      clickButton("重新运行分词");
+      clickButton("批量分词");
       await waitFor(() =>
         document
-          .querySelector(".token-result")
-          ?.textContent?.includes("基层治理"),
+          .querySelector(".notice")
+          ?.textContent?.includes("批量分词已完成"),
       );
       clickButton("词频");
     });
@@ -185,24 +193,26 @@ describe("SCOPE Milestone 1A main flow", () => {
       const row = Array.from(
         document.querySelectorAll(".frequency-table tbody tr"),
       ).find((item) => item.textContent?.includes("需要"));
-      return row?.textContent ?? null;
+      return row
+        ? Array.from(row.cells).map((cell) => cell.textContent?.trim())
+        : null;
     });
-    expect(frequencyRow).toContain("需要");
-    expect(frequencyRow).toContain("2");
-    expect(frequencyRow).toContain("1");
+    expect(frequencyRow?.[0]).toBe("需要");
+    expect(frequencyRow?.[1]).toBe("3");
+    expect(frequencyRow?.[2]).toBe("2");
 
     await $("input[aria-label='手动增加停用词']").setValue("需要");
     await $("button=增加").click();
-    await expect($(".frequency-status-idle")).toExist();
-    await expect($(".frequency-status-idle")).toHaveText(
-      expect.stringContaining("尚未执行词频分析"),
+    await expect($(".stale-result-banner")).toHaveText(
+      expect.stringContaining("待应用修改：1 项"),
     );
+    await expect($(".frequency-table")).toExist();
     await $("button=分词").click();
     expect(await $(".token-result").getText()).toContain("需要");
     await $("button=词频").click();
     const filteredFrequencyState = await browser.execute(async () => {
       const button = Array.from(document.querySelectorAll("button")).find(
-        (item) => item.textContent?.trim() === "计算 TF / DF / RF10K",
+        (item) => item.textContent?.trim() === "应用修改并重新计算",
       );
       if (!button)
         throw new Error("Missing filtered frequency calculate button");
@@ -234,5 +244,20 @@ describe("SCOPE Milestone 1A main flow", () => {
       ),
     );
     expect(filteredRow).toBe(false);
+
+    await $("button=导出 CSV").click();
+    await browser.waitUntil(
+      async () =>
+        existsSync(path.join(process.env.SCOPE_E2E_EXPORT_DIR, "词频结果.csv")),
+      { timeout: 30_000, interval: 500 },
+    );
+    await $("button=导出 XLSX").click();
+    await browser.waitUntil(
+      async () =>
+        existsSync(
+          path.join(process.env.SCOPE_E2E_EXPORT_DIR, "词频结果.xlsx"),
+        ),
+      { timeout: 30_000, interval: 500 },
+    );
   });
 });

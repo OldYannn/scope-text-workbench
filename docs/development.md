@@ -99,6 +99,8 @@ CI 会分别在 macOS arm64、macOS x64 和 Windows x64 原生 Runner 上构建 
 
 PyInstaller onefile 通过 `--add-data` 将 `engine/src/scope_engine/resources/stopwords` 打包到 `scope_engine/resources/stopwords`。运行时按 sidecar 内部 `__file__` 相邻 resources 查找，不依赖源码目录或当前工作目录。`scripts/verify_sidecar.py` 会在冻结 executable 内执行 profiles、resolve、导入、清洗、分词、词频和 CSV/XLSX 导出 smoke，资源遗漏会直接使 CI 失败。验证器与 sidecar 的 stdin/stdout 均固定为严格 UTF-8，不依赖 Windows/macOS 系统 locale。
 
+XLSX 使用固定版本 `openpyxl==3.1.5`；PyInstaller 的 contrib hook 收集其模块与 `et-xmlfile` 依赖。冻结验证不仅检查导出文件存在，还会用 `openpyxl.load_workbook` 重新打开中文路径 XLSX，并核对“词频结果/分析说明”sheet 与统一中文表头。Windows GUI E2E 在系统保存流程产生 XLSX 后，再独立调用 reader 核对 sheet、表头和非空数据。任何 writer、hook 或依赖变更都必须继续通过这些 round-trip。
+
 Windows x64 CI 先生成普通 Production bundle，再构建一个仅启用 `e2e` Cargo feature 的 Release 优化 Test Build。WebdriverIO 通过 embedded provider 启动这个真实 Tauri 应用，建立会话并确认一个稳定的关键页面元素可见。任何会话或断言失败都会阻塞 Windows Job。
 
 Windows 开发者本地执行时不需要安装 `tauri-driver` 或 MSEdgeDriver：

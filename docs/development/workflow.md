@@ -5,3 +5,5 @@
 每轮报告必须区分本地验证与当前 commit 的 CI 实际状态（PASS、RUNNING、FAILED、NOT RUN），并说明 Windows x64、macOS arm64 和 macOS x64 构建证据。研究算法先定义输入、输出、参数、默认值和固定 fixture，再进入 UI。
 
 凡是研究功能依赖 package data 或 runtime resources，frozen-sidecar CI 必须实际调用该功能验证资源存在；仅通过 source-level tests 不足以证明 production artifact 可用。核心 feature initialization 失败不得在 GUI 中 silent swallow，必须提供可理解的错误、重试入口，并禁用依赖该功能的操作。
+
+任何面向用户的 XLSX 产物都必须由成熟 writer 生成，并由 reader 在自动测试中 round-trip 重新打开、核对 sheet、表头和固定数据；仅检查 ZIP magic 或文件存在不构成有效验证。Corpus-level 确定性预处理必须提供批量执行；任何长任务都要在当前工作区显示进度、取消和部分失败摘要。

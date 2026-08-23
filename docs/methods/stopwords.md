@@ -10,7 +10,7 @@
 
 分词完成后，保存的结构化 token sequence 是不可变基础数据。停用词是下游 filter：`tokens -> eligibility -> exact-token stopword filter -> frequency analysis`。只按完整 token 精确匹配，因此停用词 `的` 不会影响 `目的地` 或 `的确`。基础 token eligibility 默认过滤空字符串、空白和纯标点/符号；中文词、英文/字母、数字和单字词都保留。
 
-TF 是当前参与分析的全部文档中 token 的出现总次数；DF 是至少出现一次该 token 的文档数量；RF10K = TF / EffectiveTokenCount × 10,000。系统同时记录 raw token count、停用词前 eligible token count、停用词后 effective token count。默认纳入所有已有有效 token 结果的文档，并明确报告“参与数 / 总数”和未分词或失效文档数。
+TF（词频）是当前参与分析的全部文档中 token 的出现总次数；DF（文档频率）是至少出现一次该 token 的文档数量，同一文档重复出现不会重复增加 DF；`Coverage(w) = DF(w) / IncludedDocumentCount × 100%`；标准化词频统一称为“每万词，RF10K”，`RF10K(w) = TF(w) / EffectiveTokenCount × 10,000`。EffectiveTokenCount 是完成基础 eligibility 和当前停用词过滤后实际参与统计的 token 总数。系统同时记录 raw token count、停用词前 eligible token count、停用词后 effective token count。默认纳入所有已有有效 token 结果的文档，并明确报告“参与数 / 总数”和未分词或失效文档数。
 
 ## Stopword Profile
 
@@ -22,6 +22,6 @@ profile 由 `builtin_profile + optional text-type extension profiles + custom ad
 
 ## 可复现与导出
 
-每次频率分析保存 Frequency Analysis Manifest，包括文档范围、分词依赖和 hash、停用词 profile/hash、三个 token 计数、公式、实现版本、执行时间和 `network_used=false`，并保存 resolved stopword snapshot。CSV 使用 UTF-8 BOM；XLSX 包含“词频结果”和“分析说明”两个 sheet。改变停用词只使频率结果失效，不重新分词、不改写 token。
+每次频率分析保存 Frequency Analysis Manifest，包括文档范围、分词依赖和 hash、停用词 profile/hash、三个 token 计数、公式、实现版本、执行时间和 `network_used=false`，并保存 resolved stopword snapshot。CSV 使用 UTF-8 BOM；XLSX 包含“词频结果”和“分析说明”两个 sheet，两者与 GUI 使用同一组中文表头。停用词编辑先进入 pending draft，修改前结果保留但标记 stale 且不可导出；一次应用后才使旧频率失效并重新计算，永不重新分词或改写 token。
 
 研究者应在论文中报告实际 profile 版本、resolved hash、文档范围和 eligibility 规则。停用词选择可能改变排行榜和相对频率，不能把默认表视为适合所有研究问题的客观真理。

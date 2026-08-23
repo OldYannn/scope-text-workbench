@@ -45,3 +45,24 @@ UX 待修：停用词输入框“手动增加词语”语义不够明确，本�
 - [ ] Optimization Assistant 与 CSV/XLSX 始终可见；未完成分析时 disabled 并说明原因。
 - [ ] Windows GUI E2E 完成清洗 → 分词 → 词频，并断言固定 fixture 的 TF/DF/RF10K 与停用词过滤回归。
 - [ ] `frequency.latest` 的项目重开恢复策略明确记录；在未接入完整 profile/result 恢复前，不把旧结果静默显示为当前有效结果。
+
+## UAT #3 与 Milestone 2B.4
+
+基准 commit：`c183de6923c8ef09cc14cd298dfd99c17b8799c8`。
+
+通过：Frequency 可运行并显示结果；Stopword Profile 正常；CSV 可导出。
+
+FAIL / UX：GUI 与 CSV 指标名不一致；逐项停用词编辑会立即清空 Frequency；缺少面向普通研究者的指标解释；真实 Excel 无法打开手写 OOXML XLSX；resolved viewer 裸点击会修改 keep words；几十/几百篇项目缺少批量清洗和分词。Manual Token Correction 与 Analysis Exclusion 是后续架构方向，不是本轮实现项。
+
+## UAT #4 checklist
+
+- [ ] GUI、CSV、XLSX 均显示“词频（TF）/文档频率（DF）/文档覆盖率/标准化词频（每万词，RF10K）”，不存在“每百万”表述。
+- [ ] “指标说明”能用非 NLP 语言解释 TF、DF、Coverage、RF10K 和 EffectiveTokenCount。
+- [ ] 连续增加多个停用词和助手候选时，旧表保持可见，显示 stale 与待应用数量；逐项撤销有效。
+- [ ] pending 状态 CSV/XLSX 禁用；“应用修改并重新计算”只触发一次最终 resolve 和一次 analysis。
+- [ ] resolved viewer 单击词语不修改配置；只有明确“保留该词”action 进入 pending。
+- [ ] CSV 为 UTF-8 BOM；XLSX 可由真实 Excel 打开，含“词频结果”和“分析说明”sheet，中文表头/数据正确。
+- [ ] 多篇语料默认批量清洗只处理未清洗文档；rerun 先提示失效影响并要求确认；进度、取消、失败文件及原因可见。
+- [ ] 批量分词只处理已有 analysis_text 且未分词的文档；未清洗文档明确跳过；使用当前 HMM/用户词典。
+- [ ] 项目概览的语料/已清洗/已分词计数正确，batch → frequency 闭环无需逐篇点击。
+- [ ] 重新清洗清除受影响 tokens；重新分词与清洗都使旧 frequency 失效，原始文本不变。

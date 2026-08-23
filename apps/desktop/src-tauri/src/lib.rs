@@ -221,6 +221,15 @@ async fn diagnostic_cancel(
 }
 
 #[tauri::command]
+async fn request_cancel(
+    supervisor: State<'_, EngineSupervisor>,
+    request_id: String,
+    target_request_id: String,
+) -> Result<Value, String> {
+    diagnostic_cancel(supervisor, request_id, target_request_id).await
+}
+
+#[tauri::command]
 async fn diagnostic_crash(
     supervisor: State<'_, EngineSupervisor>,
     request_id: String,
@@ -396,6 +405,28 @@ async fn text_clean_execute(
     .await
 }
 
+#[tauri::command]
+async fn text_clean_batch(
+    app: tauri::AppHandle,
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    rules: Value,
+    reprocess_all: bool,
+) -> Result<Value, String> {
+    approved.require_project(&project_path)?;
+    dispatch(
+        &supervisor,
+        Some(app),
+        json!({
+            "protocol_version":"0.1","request_id":request_id,"method":"text.clean.batch",
+            "params":{"project_path":project_path,"rules":rules,"reprocess_all":reprocess_all}
+        }),
+    )
+    .await
+}
+
 async fn text_tokenize(
     supervisor: State<'_, EngineSupervisor>,
     approved: State<'_, ApprovedPaths>,
@@ -447,6 +478,28 @@ async fn text_tokenize_execute(
         document_id,
         config,
         "text.tokenize.execute",
+    )
+    .await
+}
+
+#[tauri::command]
+async fn text_tokenize_batch(
+    app: tauri::AppHandle,
+    supervisor: State<'_, EngineSupervisor>,
+    approved: State<'_, ApprovedPaths>,
+    request_id: String,
+    project_path: String,
+    config: Value,
+    reprocess_all: bool,
+) -> Result<Value, String> {
+    approved.require_project(&project_path)?;
+    dispatch(
+        &supervisor,
+        Some(app),
+        json!({
+            "protocol_version":"0.1","request_id":request_id,"method":"text.tokenize.batch",
+            "params":{"project_path":project_path,"config":config,"reprocess_all":reprocess_all}
+        }),
     )
     .await
 }
@@ -672,6 +725,11 @@ async fn select_frequency_export(
     } else {
         ("导出 CSV 词频结果", "csv")
     };
+    #[cfg(feature = "e2e")]
+    if let Ok(directory) = std::env::var("SCOPE_E2E_EXPORT_DIR") {
+        let path = std::path::PathBuf::from(directory).join(format!("词频结果.{extension}"));
+        return approved.approve_export(path).map(Some);
+    }
     app.dialog()
         .file()
         .set_title(title)
@@ -714,6 +772,7 @@ pub fn run() {
         engine_describe,
         diagnostic_run,
         diagnostic_cancel,
+        request_cancel,
         diagnostic_crash,
         project_create,
         project_open,
@@ -721,8 +780,10 @@ pub fn run() {
         document_get,
         text_clean_preview,
         text_clean_execute,
+        text_clean_batch,
         text_tokenize_preview,
         text_tokenize_execute,
+        text_tokenize_batch,
         tokenization_dictionary_import,
         frequency_analyze,
         stopword_profiles,
@@ -745,6 +806,7 @@ pub fn run() {
         engine_describe,
         diagnostic_run,
         diagnostic_cancel,
+        request_cancel,
         diagnostic_crash,
         project_create,
         project_open,
@@ -752,8 +814,10 @@ pub fn run() {
         document_get,
         text_clean_preview,
         text_clean_execute,
+        text_clean_batch,
         text_tokenize_preview,
         text_tokenize_execute,
+        text_tokenize_batch,
         tokenization_dictionary_import,
         frequency_analyze,
         stopword_profiles,

@@ -32,3 +32,11 @@ SCOPE v1 固定使用 `jieba==0.42.1`。它轻量、本地运行、无需模型�
 ## 验证与打包
 
 固定 fixtures 覆盖中文句子、标点、空文本、中英文混合、数字、HMM on/off、用户词典前后差异、相同输入配置稳定性、词典 hash 稳定性、项目关闭重开、`text` / `analysis_text` 不变和 schema migration。`jieba==0.42.1` 是 sidecar 运行依赖；PyInstaller 构建必须收集 jieba 包及其默认词典资源。Windows x64、macOS arm64/x64 继续使用现有冻结 sidecar 流程，中文项目路径和用户词典路径由项目协议测试覆盖。
+
+## 批量分词与未来人工纠正
+
+`text.tokenize.batch` 默认只处理已有 `analysis_text` 且尚无 tokens 的文档；未清洗文档明确 skip/report。“重新分词全部已清洗文档”先显示 tokens 与下游结果失效的影响，用户确认后再使用同一 mode、HMM 和当前项目用户词典执行。任务逐篇提交，支持进度、取消和部分失败保留。
+
+导入新词典会清除旧 token 结果并失效词频。如果用户重新选择项目内已存在的词典，引擎会保留 manifest 已记录使用该词典的 tokens，但会清除由其他词典或无词典配置生成的 tokens，防止 GUI 显示词典与实际分词输入不一致。
+
+未来 Interactive Token Correction 不直接静默改写保存的 jieba sequence。研究者选择相邻 token，例如“基层 / 治理”，执行“合并为基层治理”后，系统把决定保存为项目词典或 correction rule，再重新分词。规则必须可查看、可撤销、可复现并进入 manifest；forced split 属于更后续范围，本轮不实现。

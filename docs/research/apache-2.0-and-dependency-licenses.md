@@ -63,7 +63,7 @@ E2E lockfile 中覆盖的 `serialize-javascript 7.0.5` 为 BSD-3-Clause。[npm r
 
 ### 4.3 Python 构建与开发工具
 
-Python sidecar 当前没有产品运行时第三方依赖。直接工具依赖如下：
+Python sidecar 的产品运行时依赖与直接工具依赖如下：
 
 | 依赖        | 声明范围    | 一手许可证信息                                                                                                                                                                                                                     | 初步结果                                             |
 | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
@@ -72,6 +72,8 @@ Python sidecar 当前没有产品运行时第三方依赖。直接工具依赖�
 | mypy        | `>=1.17,<2` | MIT。[mypy 官方仓库](https://github.com/python/mypy)                                                                                                                                                                               | 未发现明显冲突                                       |
 | Ruff        | `>=0.12,<1` | MIT。[Ruff 官方仓库](https://github.com/astral-sh/ruff)                                                                                                                                                                            | 未发现明显冲突                                       |
 | jieba       | `==0.42.1`  | MIT。jieba 0.42.1 源码发行包包含 MIT License 文本。                                                                                                                                            | 与 Apache-2.0 集成未发现明显冲突；版本固定 |
+| openpyxl | `==3.1.5` | MIT。用于生成并重新读取 OOXML XLSX；[openpyxl 官方仓库](https://foss.heptapod.net/openpyxl/openpyxl) 与发行包附 MIT License。 | 与 Apache-2.0 集成未发现明显冲突；本地离线运行，版本固定 |
+| et-xmlfile | openpyxl 传递依赖 | MIT。用于低内存 XML 文件处理；发行包 metadata 和 License 为 MIT。 | 未发现明显冲突；发布清单中应保留传递依赖归属 |
 
 ## 5. 有限的锁文件风险扫描
 

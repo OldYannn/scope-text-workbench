@@ -105,6 +105,21 @@ Milestone 1B 已完成，分词只允许使用明确保存的 `analysis_text`；
 
 本轮只修复 Frequency GUI wiring 与状态反馈，不调整分词或停用词方法，也不进入 TF-IDF。Frequency 必须作为右侧 Main Workspace 的直接内容，提供 idle/running/success/error，区分无参与文档与过滤后空结果，并由 Windows GUI E2E 执行真实清洗 → 分词 → 词频 → 停用词过滤回归。`frequency.latest` 目前仍由 Python engine 提供；在 GUI 未能恢复完整 profile/result manifest 前，重开项目不静默显示旧结果，行为需在 UAT 中明确验证。
 
+### Milestone 2B.4 — Corpus-scale Workflow & Export Hardening
+
+当前 Gate：**NOT READY**。Windows 真实使用已确认 Frequency、Stopword Profile 与 CSV 基础路径可用，但 XLSX 不兼容真实 Excel、停用词逐项修改会破坏观察上下文，且几十/几百篇语料不能依赖逐篇清洗和分词。
+
+- [x] GUI/CSV/XLSX 统一为“词语、词频（TF）、文档频率（DF）、文档覆盖率、标准化词频（每万词，RF10K）”，公式保持 `TF / EffectiveTokenCount × 10,000`
+- [x] 停用词采用 pending draft，旧词频在编辑期间标记 stale 并保留；支持逐项撤销和一次应用/重算
+- [x] resolved viewer 默认只读，保留词必须使用明确 action
+- [x] 使用 `openpyxl==3.1.5` 生成 XLSX，并在单元、frozen sidecar 和 Windows GUI 保存路径中用 reader round-trip 验证中文 sheet、表头和数据
+- [x] project-level batch cleaning/tokenization 支持默认 eligible-only、rerun 影响确认、进度、取消、逐文档失败原因和下游失效
+- [x] 项目概览显示语料、已清洗、已分词数量；Windows GUI E2E 使用多文档 fixture 执行 batch → frequency → export
+- [ ] 完整跨平台 CI 与 Windows production Artifact
+- [ ] Project Owner UAT #4
+
+未来方向仅完成架构记录：Interactive Token Correction 通过项目词典/纠正规则后重新分词；Analysis Exclusion Masks 在 cleaned text 与 effective analysis text 之间提供可见、可撤销、带 hash 的排除层。本轮不实现自由 token 编辑、forced split 或 exclusion mask。
+
 后续将按照 `PROJECT_BRIEF.md` 依次推进中文分词与词频分析、共现分析、研究审计链、可选模型 Provider、实验性 AI 编码和首个 Public Alpha。
 
 宣布任何 Milestone 完成前，都必须通过 `AGENTS.md` 规定的构建、测试、格式、文档、隐私和可复现性检查。

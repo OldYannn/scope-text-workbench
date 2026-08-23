@@ -3,12 +3,12 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
-import zipfile
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
-from xml.sax.saxutils import escape
+
+from openpyxl import Workbook  # type: ignore[import-untyped]
 
 from . import __version__
 from .stopwords import (
@@ -19,6 +19,13 @@ from .stopwords import (
 )
 
 FREQUENCY_IMPLEMENTATION_VERSION = "1"
+EXPORT_HEADERS = [
+    "词语",
+    "词频（TF）",
+    "文档频率（DF）",
+    "文档覆盖率",
+    "标准化词频（每万词，RF10K）",
+]
 
 
 def _now() -> str:
@@ -113,51 +120,69 @@ def optimization_candidates(
 def export_csv(result: dict[str, Any], destination: str | Path) -> Path:
     path = Path(destination)
     with path.open("w", encoding="utf-8-sig", newline="") as stream:
-        writer = csv.DictWriter(
-            stream, fieldnames=["token", "tf", "df", "document_coverage", "rf10k"]
+        writer = csv.writer(stream)
+        writer.writerow(EXPORT_HEADERS)
+        writer.writerows(
+            [row["token"], row["tf"], row["df"], row["document_coverage"], row["rf10k"]]
+            for row in result["rows"]
         )
-        writer.writeheader()
-        writer.writerows(result["rows"])
     return path
 
 
 def export_xlsx(result: dict[str, Any], destination: str | Path) -> Path:
-    def sheet_xml(rows: list[list[Any]]) -> str:
-        body = []
-        for row_number, row in enumerate(rows, 1):
-            cells = []
-            for column, value in enumerate(row, 1):
-                ref = f"{chr(64 + column)}{row_number}"
-                if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    cells.append(f'<c r="{ref}"><v>{value}</v></c>')
-                else:
-                    cells.append(
-                        f'<c r="{ref}" t="inlineStr"><is><t>{escape(str(value))}</t></is></c>'
-                    )
-            body.append(f'<row r="{row_number}">{"".join(cells)}</row>')
-        return (
-            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
-            + "".join(body)
-            + "</sheetData></worksheet>"
-        )
-
-    result_rows = [["token", "TF", "DF", "document coverage", "RF10K"]] + [
-        [r["token"], r["tf"], r["df"], r["document_coverage"], r["rf10k"]] for r in result["rows"]
-    ]
-    info_rows = [
-        [key, json.dumps(value, ensure_ascii=False) if isinstance(value, (list, dict)) else value]
-        for key, value in result["manifest"].items()
-    ]
-    content_types = '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'
-    workbook = '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="词频结果" sheetId="1" r:id="rId1"/><sheet name="分析说明" sheetId="2" r:id="rId2"/></sheets></workbook>'
-    rels = '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>'
     path = Path(destination)
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", content_types)
-        archive.writestr("xl/workbook.xml", workbook)
-        archive.writestr("xl/_rels/workbook.xml.rels", rels)
-        archive.writestr("xl/worksheets/sheet1.xml", sheet_xml(result_rows))
-        archive.writestr("xl/worksheets/sheet2.xml", sheet_xml(info_rows))
+    workbook = Workbook()
+    results_sheet = workbook.active
+    results_sheet.title = "词频结果"
+    results_sheet.append(EXPORT_HEADERS)
+    for row in result["rows"]:
+        results_sheet.append(
+            [row["token"], row["tf"], row["df"], row["document_coverage"], row["rf10k"]]
+        )
+    results_sheet.freeze_panes = "A2"
+    results_sheet.auto_filter.ref = results_sheet.dimensions
+    results_sheet.column_dimensions["A"].width = 24
+    for column in ("B", "C", "D", "E"):
+        results_sheet.column_dimensions[column].width = 22
+    for cell in results_sheet["D"][1:]:
+        cell.number_format = "0.00%"
+    for cell in results_sheet["E"][1:]:
+        cell.number_format = "0.00"
+
+    manifest = result["manifest"]
+    info_sheet = workbook.create_sheet("分析说明")
+    info_sheet.append(["项目", manifest.get("project_name", "")])
+    info_sheet.append(["参与文档数", manifest["included_document_count"]])
+    info_sheet.append(["raw token count", manifest["raw_token_count"]])
+    info_sheet.append(["eligible token count", manifest["eligible_token_count"]])
+    info_sheet.append(["effective token count", manifest["effective_token_count"]])
+    info_sheet.append(["Stopword Profile", manifest["stopword_base_profile_id"]])
+    info_sheet.append(["Stopword hash", manifest["resolved_stopword_hash"]])
+    tokenization_dependencies = manifest.get("tokenization_dependencies", [])
+    jieba_version = next(
+        (
+            dependency.get("engine_version")
+            for dependency in tokenization_dependencies
+            if isinstance(dependency, dict) and dependency.get("engine") == "jieba"
+        ),
+        "",
+    )
+    info_sheet.append(["jieba version", jieba_version])
+    info_sheet.append(["TF definition", manifest["tf_definition"]])
+    info_sheet.append(["DF definition", manifest["df_definition"]])
+    info_sheet.append(["Coverage definition", "Coverage(w) = DF(w) / IncludedDocumentCount * 100%"])
+    info_sheet.append(["RF10K definition", manifest["relative_frequency_definition"]])
+    info_sheet.append(
+        [
+            "EffectiveTokenCount",
+            "完成基础 token eligibility 和当前停用词过滤后，实际参与本次统计的 token 总数。",
+        ]
+    )
+    info_sheet.append(["执行时间", manifest["executed_at"]])
+    info_sheet.append(["SCOPE version", manifest["software_version"]])
+    info_sheet.column_dimensions["A"].width = 28
+    info_sheet.column_dimensions["B"].width = 88
+    workbook.save(path)
     return path
 
 
