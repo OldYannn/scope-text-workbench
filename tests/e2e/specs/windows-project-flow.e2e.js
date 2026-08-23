@@ -222,7 +222,13 @@ describe("SCOPE Milestone 1A main flow", () => {
       const deadline = Date.now() + 60_000;
       while (Date.now() < deadline) {
         const status = document.querySelector(".frequency-status");
-        if (status?.classList.contains("frequency-status-success")) {
+        const hasPendingChanges = Boolean(
+          document.querySelector(".stale-result-banner"),
+        );
+        if (
+          !hasPendingChanges &&
+          status?.classList.contains("frequency-status-success")
+        ) {
           return { status: "success", text: status.textContent ?? "" };
         }
         if (status?.classList.contains("frequency-status-error")) {
@@ -234,7 +240,7 @@ describe("SCOPE Milestone 1A main flow", () => {
       }
       const status = document.querySelector(".frequency-status");
       throw new Error(
-        `Timed out waiting for filtered frequency success: ${status?.className ?? "missing"} ${status?.textContent ?? ""}`,
+        `Timed out waiting for filtered frequency success: pending=${Boolean(document.querySelector(".stale-result-banner"))} ${status?.className ?? "missing"} ${status?.textContent ?? ""}`,
       );
     });
     expect(filteredFrequencyState.status).toBe("success");
