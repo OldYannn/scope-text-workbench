@@ -32,7 +32,7 @@ Frequency 的停用词编辑采用“已应用配置 + pending draft”。连续
 - “查看实际词表”使用只读 Drawer，词语本身不可点击修改，只有明确的“保留该词”操作会进入 pending draft；
 - 长任务继续在 workspace 内显示状态；短成功反馈使用轻量 notification，不能替代错误和长任务状态。
 
-所有 Popover 与 Drawer 由 Radix 处理 Portal、焦点管理、Escape 和关闭后的触发控件焦点恢复。Drawer 的 Overlay 使用 Radix 默认的外部点击关闭行为。
+所有 Popover 与 Drawer 由 Radix 处理 Portal、焦点管理和默认关闭行为。Drawer 显式保存其外部触发控件的 ref，以保证 Escape、关闭按钮或 Overlay 关闭后焦点返回原触发位置；Overlay 使用 Radix 默认的外部点击关闭行为。
 
 ### 项目负责人说明
 

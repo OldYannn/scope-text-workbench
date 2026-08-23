@@ -213,7 +213,7 @@ describe("SCOPE Milestone 1A main flow", () => {
       expect.stringContaining("停用词优化助手"),
     );
     await expect($(".frequency-table")).toExist();
-    await $("button=关闭").click();
+    await browser.keys("Escape");
     await expect($(".drawer-content")).not.toExist();
 
     await $("button=查看实际词表").click();

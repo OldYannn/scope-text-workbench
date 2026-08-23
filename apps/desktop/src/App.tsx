@@ -9,8 +9,8 @@ import {
   Undo2,
   WandSparkles,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Button } from "./ui/Button";
+import { useEffect, useRef, useState } from "react";
+import { Button, IconButton } from "./ui/Button";
 import { Drawer } from "./ui/Drawer";
 import { Notification } from "./ui/Notification";
 import { Tooltip } from "./ui/Tooltip";
@@ -323,6 +323,8 @@ function FrequencyWorkspace({
   onUndoIgnore,
 }: FrequencyWorkspaceProps) {
   const [showMetricHelp, setShowMetricHelp] = useState(false);
+  const resolvedStopwordsTriggerRef = useRef<HTMLButtonElement>(null);
+  const optimizationTriggerRef = useRef<HTMLButtonElement>(null);
   const hasRows = Boolean(frequency?.rows.length);
   const includedCount = frequency?.manifest.included_document_count ?? 0;
   const resultMessage =
@@ -385,7 +387,11 @@ function FrequencyWorkspace({
           {stopwordProfile?.resolved_stopwords.length ?? 0} · 增加：
           {stopwordAdditions.length} · 保留：{stopwordExclusions.length}
         </span>
-        <Button variant="ghost" onClick={() => onResolvedOpenChange(true)}>
+        <Button
+          ref={resolvedStopwordsTriggerRef}
+          variant="ghost"
+          onClick={() => onResolvedOpenChange(true)}
+        >
           查看实际词表
         </Button>
         <Button
@@ -427,25 +433,33 @@ function FrequencyWorkspace({
           <span>
             增加：
             {stopwordAdditions.map((word) => (
-              <button
-                key={word}
-                className="stopword-chip"
-                onClick={() => onUndoAddition(word)}
-              >
-                {word} ×
-              </button>
+              <span key={word} className="pending-stopword">
+                <span className="stopword-chip">{word}</span>
+                <Tooltip content={`撤销增加：${word}`}>
+                  <IconButton
+                    aria-label={`撤销增加：${word}`}
+                    onClick={() => onUndoAddition(word)}
+                  >
+                    <Undo2 aria-hidden="true" size={14} strokeWidth={2} />
+                  </IconButton>
+                </Tooltip>
+              </span>
             ))}
           </span>
           <span>
             保留：
             {stopwordExclusions.map((word) => (
-              <button
-                key={word}
-                className="stopword-chip"
-                onClick={() => onUndoExclusion(word)}
-              >
-                {word} ×
-              </button>
+              <span key={word} className="pending-stopword">
+                <span className="stopword-chip">{word}</span>
+                <Tooltip content={`撤销保留：${word}`}>
+                  <IconButton
+                    aria-label={`撤销保留：${word}`}
+                    onClick={() => onUndoExclusion(word)}
+                  >
+                    <Undo2 aria-hidden="true" size={14} strokeWidth={2} />
+                  </IconButton>
+                </Tooltip>
+              </span>
             ))}
           </span>
         </div>
@@ -509,6 +523,7 @@ function FrequencyWorkspace({
           </select>
         </label>
         <Button
+          ref={optimizationTriggerRef}
           variant="ghost"
           onClick={() => onOptimizationOpenChange(true)}
           disabled={!frequency || stopwordLoadError}
@@ -584,6 +599,7 @@ function FrequencyWorkspace({
         onOpenChange={onOptimizationOpenChange}
         title="停用词优化助手"
         description="基于当前词频结果生成候选"
+        returnFocusRef={optimizationTriggerRef}
       >
         {frequency?.candidates.map((row) => {
           const candidateStatus = stopwordAdditions.includes(row.token)
@@ -644,6 +660,7 @@ function FrequencyWorkspace({
         onOpenChange={onResolvedOpenChange}
         title="当前停用词集合"
         description={`生效词数：${formatCount(stopwordProfile?.resolved_stopwords.length ?? 0)}`}
+        returnFocusRef={resolvedStopwordsTriggerRef}
       >
         <div className="resolved-stopwords" aria-label="实际停用词集合">
           {(stopwordProfile?.resolved_stopwords ?? []).map((word) => (

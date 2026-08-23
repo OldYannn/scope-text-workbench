@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { IconButton } from "./Button";
 import { Tooltip } from "./Tooltip";
 
@@ -9,6 +9,7 @@ type DrawerProps = {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
+  returnFocusRef?: RefObject<HTMLElement | null>;
   children: ReactNode;
 };
 
@@ -17,13 +18,25 @@ export function Drawer({
   onOpenChange,
   title,
   description,
+  returnFocusRef,
   children,
 }: DrawerProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="drawer-overlay" />
-        <Dialog.Content className="drawer-content">
+        <Dialog.Content
+          className="drawer-content"
+          onEscapeKeyDown={() => onOpenChange(false)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") onOpenChange(false);
+          }}
+          onCloseAutoFocus={(event) => {
+            if (!returnFocusRef?.current) return;
+            event.preventDefault();
+            returnFocusRef.current.focus();
+          }}
+        >
           <div className="drawer-heading">
             <div>
               <Dialog.Title>{title}</Dialog.Title>

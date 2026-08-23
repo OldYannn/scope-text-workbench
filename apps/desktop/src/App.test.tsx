@@ -364,6 +364,8 @@ describe("Milestone 1A project workflow", () => {
 
     await user.click(screen.getByRole("button", { name: "指标说明" }));
     expect(screen.getByRole("heading", { name: "词频指标说明" })).toBeTruthy();
+    expect(screen.getByText("TF｜词频")).toBeTruthy();
+    expect(screen.getByText("DF｜文档频率")).toBeTruthy();
     expect(screen.getByText(/RF10K\(w\) = TF\(w\)/)).toBeTruthy();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("heading", { name: "词频指标说明" })).toBeNull();
@@ -375,6 +377,17 @@ describe("Milestone 1A project workflow", () => {
     expect(
       globalThis.document.querySelector(".frequency-table"),
     ).not.toBeNull();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "当前停用词集合" }),
+      ).toBeNull(),
+    );
+    expect(globalThis.document.activeElement).toBe(
+      screen.getByRole("button", { name: "查看实际词表" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "查看实际词表" }));
     const resolvedViewer = screen.getByLabelText("实际停用词集合");
     await user.click(within(resolvedViewer).getByText("的"));
     expect(screen.queryByText(/待应用修改/)).toBeNull();
@@ -392,7 +405,7 @@ describe("Milestone 1A project workflow", () => {
         screen.queryByRole("heading", { name: "当前停用词集合" }),
       ).toBeNull(),
     );
-    await user.click(screen.getByRole("button", { name: "的 ×" }));
+    await user.click(screen.getByRole("button", { name: "撤销保留：的" }));
     expect(screen.queryByText(/待应用修改/)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "停用词优化助手" }));
@@ -448,6 +461,9 @@ describe("Milestone 1A project workflow", () => {
       expect(
         screen.queryByRole("heading", { name: "停用词优化助手" }),
       ).toBeNull(),
+    );
+    expect(globalThis.document.activeElement).toBe(
+      screen.getByRole("button", { name: "停用词优化助手" }),
     );
 
     await user.type(screen.getByLabelText("手动增加停用词"), "基层治理");

@@ -948,8 +948,21 @@ button {
   border: 1px solid var(--rule);
   background: white;
   color: var(--ink);
-  cursor: pointer;
+  cursor: default;
   font-size: 0.78rem;
+}
+
+.pending-stopword {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pending-stopword .icon-button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
 }
 
 .candidate-row {

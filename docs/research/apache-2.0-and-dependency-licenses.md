@@ -63,7 +63,7 @@ Windows GUI E2E 的 WebdriverIO 直接依赖（`@wdio/cli`、`@wdio/globals`、`
 
 E2E lockfile 中覆盖的 `serialize-javascript 7.0.5` 为 BSD-3-Clause。[npm registry metadata](https://registry.npmjs.org/serialize-javascript/7.0.5) 未发现明显 Apache-2.0 发布冲突。
 
-UX-1A 在 2026-08-24 的本地 production Vite build 中输出 JS `313.71 kB`（gzip `100.17 kB`）和 CSS `17.23 kB`（gzip `4.33 kB`）。这是引入三个按需 Radix primitives 与使用到的 Lucide 图标后的可复核快照，不应与未在同一环境保存的旧构建作伪精确比较；后续 UI 依赖变更应再次记录同一命令的输出。
+UX-1A 在 2026-08-24 的本地 production Vite build 中输出 JS `314.38 kB`（gzip `100.30 kB`）和 CSS `17.38 kB`（gzip `4.36 kB`）。这是引入三个按需 Radix primitives 与使用到的 Lucide 图标后的可复核快照，不应与未在同一环境保存的旧构建作伪精确比较；后续 UI 依赖变更应再次记录同一命令的输出。
 
 ### 4.3 Python 构建与开发工具
 
