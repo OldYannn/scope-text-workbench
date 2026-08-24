@@ -390,6 +390,9 @@ function FrequencyWorkspace({
         <Button
           ref={resolvedStopwordsTriggerRef}
           variant="ghost"
+          data-testid="resolved-stopwords-trigger"
+          data-state={showResolvedStopwords ? "open" : "closed"}
+          aria-expanded={showResolvedStopwords}
           onClick={() => onResolvedOpenChange(true)}
         >
           查看实际词表
@@ -525,6 +528,9 @@ function FrequencyWorkspace({
         <Button
           ref={optimizationTriggerRef}
           variant="ghost"
+          data-testid="optimization-drawer-trigger"
+          data-state={showOptimization ? "open" : "closed"}
+          aria-expanded={showOptimization}
           onClick={() => onOptimizationOpenChange(true)}
           disabled={!frequency || stopwordLoadError}
         >
@@ -550,7 +556,11 @@ function FrequencyWorkspace({
         <Popover.Root open={showMetricHelp} onOpenChange={setShowMetricHelp}>
           <Tooltip content="词频指标说明">
             <Popover.Trigger asChild>
-              <Button variant="ghost" className="metric-help-trigger">
+              <Button
+                variant="ghost"
+                className="metric-help-trigger"
+                data-testid="metrics-help-trigger"
+              >
                 <CircleHelp aria-hidden="true" size={16} strokeWidth={2} />
                 指标说明
               </Button>
@@ -559,6 +569,7 @@ function FrequencyWorkspace({
           <Popover.Portal>
             <Popover.Content
               className="metric-popover"
+              data-testid="metrics-help-popover"
               side="bottom"
               align="end"
               sideOffset={8}
@@ -600,6 +611,7 @@ function FrequencyWorkspace({
         title="停用词优化助手"
         description="基于当前词频结果生成候选"
         returnFocusRef={optimizationTriggerRef}
+        testId="optimization-drawer"
       >
         {frequency?.candidates.map((row) => {
           const candidateStatus = stopwordAdditions.includes(row.token)
@@ -661,11 +673,12 @@ function FrequencyWorkspace({
         title="当前停用词集合"
         description={`生效词数：${formatCount(stopwordProfile?.resolved_stopwords.length ?? 0)}`}
         returnFocusRef={resolvedStopwordsTriggerRef}
+        testId="resolved-stopwords-drawer"
       >
         <div className="resolved-stopwords" aria-label="实际停用词集合">
           {(stopwordProfile?.resolved_stopwords ?? []).map((word) => (
             <div key={word} className="resolved-stopword-item">
-              <span>{word}</span>
+              <span data-testid={`resolved-stopword-word-${word}`}>{word}</span>
               <Button variant="ghost" onClick={() => onKeep(word)}>
                 保留该词
               </Button>

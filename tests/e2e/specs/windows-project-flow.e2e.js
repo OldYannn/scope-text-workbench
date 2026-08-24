@@ -201,28 +201,57 @@ describe("SCOPE Milestone 1A main flow", () => {
     expect(frequencyRow?.[1]).toBe("3");
     expect(frequencyRow?.[2]).toBe("2");
 
-    await $("button=指标说明").click();
-    await expect($(".metric-popover")).toHaveText(
+    const metricsHelpTrigger = $("[data-testid='metrics-help-trigger']");
+    const metricsHelpPopover = $("[data-testid='metrics-help-popover']");
+    await metricsHelpTrigger.click();
+    await expect(metricsHelpTrigger).toHaveAttribute("data-state", "open");
+    await expect(metricsHelpPopover).toBeDisplayed();
+    await expect(metricsHelpPopover).toHaveText(
       expect.stringContaining("RF10K(w) = TF(w)"),
     );
     await browser.keys("Escape");
-    await expect($(".metric-popover")).not.toExist();
+    await expect(metricsHelpTrigger).toHaveAttribute("data-state", "closed");
+    await expect(metricsHelpPopover).not.toExist();
+    await expect(metricsHelpTrigger).toBeFocused();
 
-    await $("button=停用词优化助手").click();
-    await expect($(".drawer-content")).toHaveText(
+    const optimizationTrigger = $(
+      "[data-testid='optimization-drawer-trigger']",
+    );
+    const optimizationDrawer = $("[data-testid='optimization-drawer']");
+    await optimizationTrigger.click();
+    await expect(optimizationTrigger).toHaveAttribute("data-state", "open");
+    await expect(optimizationDrawer).toBeDisplayed();
+    await expect(optimizationDrawer).toHaveText(
       expect.stringContaining("停用词优化助手"),
     );
     await expect($(".frequency-table")).toExist();
     await browser.keys("Escape");
-    await expect($(".drawer-content")).not.toExist();
+    await expect(optimizationTrigger).toHaveAttribute("data-state", "closed");
+    await expect(optimizationDrawer).not.toExist();
+    await expect(optimizationTrigger).toBeFocused();
 
-    await $("button=查看实际词表").click();
-    await expect($(".drawer-content")).toHaveText(
+    const resolvedStopwordsTrigger = $(
+      "[data-testid='resolved-stopwords-trigger']",
+    );
+    const resolvedStopwordsDrawer = $(
+      "[data-testid='resolved-stopwords-drawer']",
+    );
+    const resolvedStopwordsClose = $(
+      "[data-testid='resolved-stopwords-drawer-close']",
+    );
+    await resolvedStopwordsTrigger.click();
+    await expect(resolvedStopwordsTrigger).toHaveAttribute("data-state", "open");
+    await expect(resolvedStopwordsDrawer).toBeDisplayed();
+    await expect(resolvedStopwordsDrawer).toHaveText(
       expect.stringContaining("当前停用词集合"),
     );
     await expect($(".frequency-table")).toExist();
-    await $("button=关闭").click();
-    await expect($(".drawer-content")).not.toExist();
+    await $("[data-testid='resolved-stopword-word-的']").click();
+    await expect($(".stale-result-banner")).not.toExist();
+    await resolvedStopwordsClose.click();
+    await expect(resolvedStopwordsTrigger).toHaveAttribute("data-state", "closed");
+    await expect(resolvedStopwordsDrawer).not.toExist();
+    await expect(resolvedStopwordsTrigger).toBeFocused();
 
     await $("input[aria-label='手动增加停用词']").setValue("需要");
     await $("button=增加").click();

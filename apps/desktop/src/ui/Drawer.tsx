@@ -10,6 +10,7 @@ type DrawerProps = {
   title: string;
   description?: string;
   returnFocusRef?: RefObject<HTMLElement | null>;
+  testId?: string;
   children: ReactNode;
 };
 
@@ -19,6 +20,7 @@ export function Drawer({
   title,
   description,
   returnFocusRef,
+  testId,
   children,
 }: DrawerProps) {
   return (
@@ -27,6 +29,7 @@ export function Drawer({
         <Dialog.Overlay className="drawer-overlay" />
         <Dialog.Content
           className="drawer-content"
+          data-testid={testId}
           onEscapeKeyDown={() => onOpenChange(false)}
           onKeyDown={(event) => {
             if (event.key === "Escape") onOpenChange(false);
@@ -46,7 +49,10 @@ export function Drawer({
             </div>
             <Tooltip content="关闭">
               <Dialog.Close asChild>
-                <IconButton aria-label="关闭">
+                <IconButton
+                  aria-label="关闭"
+                  data-testid={testId ? `${testId}-close` : undefined}
+                >
                   <X aria-hidden="true" size={18} strokeWidth={2} />
                 </IconButton>
               </Dialog.Close>
