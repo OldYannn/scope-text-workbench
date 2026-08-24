@@ -212,7 +212,7 @@ describe("SCOPE Milestone 1A main flow", () => {
     await browser.keys("Escape");
     await expect(metricsHelpTrigger).toHaveAttribute("data-state", "closed");
     await expect(metricsHelpPopover).not.toExist();
-    await expect(metricsHelpTrigger).toBeFocused();
+    expect(await metricsHelpTrigger.isFocused()).toBe(true);
 
     const optimizationTrigger = $(
       "[data-testid='optimization-drawer-trigger']",
@@ -228,7 +228,7 @@ describe("SCOPE Milestone 1A main flow", () => {
     await browser.keys("Escape");
     await expect(optimizationTrigger).toHaveAttribute("data-state", "closed");
     await expect(optimizationDrawer).not.toExist();
-    await expect(optimizationTrigger).toBeFocused();
+    expect(await optimizationTrigger.isFocused()).toBe(true);
 
     const resolvedStopwordsTrigger = $(
       "[data-testid='resolved-stopwords-trigger']",
@@ -240,7 +240,10 @@ describe("SCOPE Milestone 1A main flow", () => {
       "[data-testid='resolved-stopwords-drawer-close']",
     );
     await resolvedStopwordsTrigger.click();
-    await expect(resolvedStopwordsTrigger).toHaveAttribute("data-state", "open");
+    await expect(resolvedStopwordsTrigger).toHaveAttribute(
+      "data-state",
+      "open",
+    );
     await expect(resolvedStopwordsDrawer).toBeDisplayed();
     await expect(resolvedStopwordsDrawer).toHaveText(
       expect.stringContaining("当前停用词集合"),
@@ -249,9 +252,12 @@ describe("SCOPE Milestone 1A main flow", () => {
     await $("[data-testid='resolved-stopword-word-的']").click();
     await expect($(".stale-result-banner")).not.toExist();
     await resolvedStopwordsClose.click();
-    await expect(resolvedStopwordsTrigger).toHaveAttribute("data-state", "closed");
+    await expect(resolvedStopwordsTrigger).toHaveAttribute(
+      "data-state",
+      "closed",
+    );
     await expect(resolvedStopwordsDrawer).not.toExist();
-    await expect(resolvedStopwordsTrigger).toBeFocused();
+    expect(await resolvedStopwordsTrigger.isFocused()).toBe(true);
 
     await $("input[aria-label='手动增加停用词']").setValue("需要");
     await $("button=增加").click();
