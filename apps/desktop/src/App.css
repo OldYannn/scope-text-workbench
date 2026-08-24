@@ -57,7 +57,7 @@
   font-size: 0.82rem;
 }
 
-.pipeline-stage-button {
+.button.pipeline-stage-button {
   display: grid;
   gap: 3px;
   min-width: 106px;

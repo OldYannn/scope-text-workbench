@@ -181,6 +181,15 @@ type BatchProgress = {
   message: string;
 };
 
+type WorkspaceTab = "text" | "cleaning" | "tokenize" | "frequency";
+
+const workspaceTabs: ReadonlyArray<{ key: WorkspaceTab; label: string }> = [
+  { key: "text", label: "文本" },
+  { key: "cleaning", label: "清洗" },
+  { key: "tokenize", label: "分词" },
+  { key: "frequency", label: "词频" },
+];
+
 const errorMessages: Record<string, string> = {
   invalid_project_name: "项目名称为空，或包含 Windows 不支持的字符",
   project_location_unavailable: "选择的保存位置不可用",
@@ -799,9 +808,7 @@ function App() {
   const [topN, setTopN] = useState("100");
   const [ignoredCandidates, setIgnoredCandidates] = useState<string[]>([]);
   const [stopwordLoadError, setStopwordLoadError] = useState(false);
-  const [workspaceTab, setWorkspaceTab] = useState<
-    "text" | "cleaning" | "tokenize" | "frequency"
-  >("text");
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("text");
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(
     null,
   );
@@ -839,6 +846,53 @@ function App() {
     : frequencyStatus === "success" && frequency
       ? "已计算"
       : "待计算";
+  const pipelineStages = workspaceTabs.map(({ key, label }) => {
+    if (key === "text") {
+      return {
+        key,
+        label: "语料",
+        value: `${project?.document_count ?? 0} 篇`,
+        state: "complete" as const,
+      };
+    }
+    if (key === "cleaning") {
+      const cleanedCount = project?.cleaned_count ?? 0;
+      const documentCount = project?.document_count ?? 0;
+      return {
+        key,
+        label,
+        value: `${cleanedCount} / ${documentCount}`,
+        state:
+          cleanedCount === documentCount && documentCount > 0
+            ? ("complete" as const)
+            : ("pending" as const),
+      };
+    }
+    if (key === "tokenize") {
+      const tokenizedCount = project?.tokenized_count ?? 0;
+      const documentCount = project?.document_count ?? 0;
+      return {
+        key,
+        label,
+        value: `${tokenizedCount} / ${documentCount}`,
+        state:
+          tokenizedCount === documentCount && documentCount > 0
+            ? ("complete" as const)
+            : ("pending" as const),
+      };
+    }
+    return {
+      key,
+      label,
+      value: frequencyPipelineState,
+      state:
+        frequencyPipelineState === "已计算"
+          ? ("complete" as const)
+          : frequencyPipelineState === "需重新计算"
+            ? ("stale" as const)
+            : ("pending" as const),
+    };
+  });
 
   useEffect(() => {
     if (!toast) return;
@@ -1740,47 +1794,15 @@ function App() {
       </section>
 
       <nav className="pipeline-status" aria-label="处理流程状态">
-        {(
-          [
-            ["text", "语料", `${project.document_count} 篇`, "complete"],
-            [
-              "cleaning",
-              "清洗",
-              `${project.cleaned_count ?? 0} / ${project.document_count}`,
-              (project.cleaned_count ?? 0) === project.document_count &&
-              project.document_count > 0
-                ? "complete"
-                : "pending",
-            ],
-            [
-              "tokenize",
-              "分词",
-              `${project.tokenized_count ?? 0} / ${project.document_count}`,
-              (project.tokenized_count ?? 0) === project.document_count &&
-              project.document_count > 0
-                ? "complete"
-                : "pending",
-            ],
-            [
-              "frequency",
-              "词频",
-              frequencyPipelineState,
-              frequencyPipelineState === "已计算"
-                ? "complete"
-                : frequencyPipelineState === "需重新计算"
-                  ? "stale"
-                  : "pending",
-            ],
-          ] as const
-        ).map(([key, label, value, state], index) => (
+        {pipelineStages.map(({ key, label, value, state }, index) => (
           <div className="pipeline-stage" key={key}>
             {index > 0 && (
               <span className="pipeline-arrow" aria-hidden="true">
                 →
               </span>
             )}
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               className={`pipeline-stage-button ${state}`}
               data-testid={`pipeline-stage-${key}`}
               aria-current={workspaceTab === key ? "step" : undefined}
@@ -1791,7 +1813,7 @@ function App() {
                 {state === "complete" && key !== "frequency" ? "✓ " : ""}
                 {value}
               </strong>
-            </button>
+            </Button>
           </div>
         ))}
       </nav>
@@ -1800,14 +1822,7 @@ function App() {
         {notice}
       </p>
       <nav className="workspace-tabs" aria-label="研究工作区">
-        {(
-          [
-            ["text", "文本"],
-            ["cleaning", "清洗"],
-            ["tokenize", "分词"],
-            ["frequency", "词频"],
-          ] as const
-        ).map(([key, label]) => (
+        {workspaceTabs.map(({ key, label }) => (
           <button
             key={key}
             className={workspaceTab === key ? "active" : ""}

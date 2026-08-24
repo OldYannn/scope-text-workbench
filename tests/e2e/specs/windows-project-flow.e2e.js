@@ -56,27 +56,31 @@ describe("SCOPE Milestone 1A main flow", () => {
       async () => $("button*=batch-frequency-2.txt").isExisting(),
       { timeout: 60_000, interval: 1_000 },
     );
-    const longFilename =
-      "中国证券监督管理委员会关于准予中欧养老产业混合型证券投资基金注册的批复-without-any-spaces.txt";
-    await $("button*=" + longFilename).click();
-    const longFilenameLayout = await browser.execute(() => {
-      const filename = document.querySelector(
-        "[data-testid='preview-filename']",
-      );
-      const panel = document.querySelector(".preview-panel");
-      if (!filename || !panel)
-        throw new Error("Missing preview filename layout");
-      return {
-        title: filename.getAttribute("title"),
-        truncated: filename.scrollWidth > filename.clientWidth,
-        panelDoesNotOverflow: panel.scrollWidth <= panel.clientWidth,
-      };
-    });
-    expect(longFilenameLayout).toEqual({
-      title: longFilename,
-      truncated: true,
-      panelDoesNotOverflow: true,
-    });
+    const longFilenames = [
+      "中国证券监督管理委员会关于准予中欧养老产业混合型证券投资基金注册的批复-without-any-spaces.txt",
+      "AnExtremelyLongEnglishFilenameWithoutAnySpacesThatMustNeverOverflowThePreviewPanel.txt",
+    ];
+    for (const longFilename of longFilenames) {
+      await $("button*=" + longFilename).click();
+      const longFilenameLayout = await browser.execute(() => {
+        const filename = document.querySelector(
+          "[data-testid='preview-filename']",
+        );
+        const panel = document.querySelector(".preview-panel");
+        if (!filename || !panel)
+          throw new Error("Missing preview filename layout");
+        return {
+          title: filename.getAttribute("title"),
+          truncated: filename.scrollWidth > filename.clientWidth,
+          panelDoesNotOverflow: panel.scrollWidth <= panel.clientWidth,
+        };
+      });
+      expect(longFilenameLayout).toEqual({
+        title: longFilename,
+        truncated: true,
+        panelDoesNotOverflow: true,
+      });
+    }
     await $("button*=frequency-gui.txt").click();
     await expect($(".text-preview")).toHaveText(
       "基层治理需要政策支持。基层治理需要实践检验。",
@@ -254,6 +258,50 @@ describe("SCOPE Milestone 1A main flow", () => {
       allHeadersNoWrap: true,
       localScrollContainer: true,
       exposedLexicalSort: false,
+    });
+    const defaultViewportLayout = await browser.execute(() => {
+      const shell = document.querySelector(".app-shell");
+      const table = document.querySelector(".frequency-table");
+      const container = document.querySelector(".frequency-table-wrap");
+      if (!shell || !table || !container)
+        throw new Error("Missing default viewport layout");
+      return {
+        appDoesNotOverflow:
+          document.documentElement.scrollWidth <= window.innerWidth,
+        tableFitsAtDefaultWidth: table.scrollWidth <= container.clientWidth,
+      };
+    });
+    expect(defaultViewportLayout).toEqual({
+      appDoesNotOverflow: true,
+      tableFitsAtDefaultWidth: true,
+    });
+    await browser.setWindowSize(980, 720);
+    await browser.waitUntil(
+      async () => (await browser.execute(() => window.innerWidth)) <= 980,
+      { timeout: 15_000, interval: 100 },
+    );
+    const minimumViewportLayout = await browser.execute(() => {
+      const shell = document.querySelector(".app-shell");
+      const sidebar = document.querySelector(".document-panel");
+      const workspace = document.querySelector(".preview-panel");
+      const table = document.querySelector(".frequency-table");
+      const container = document.querySelector(".frequency-table-wrap");
+      if (!shell || !sidebar || !workspace || !table || !container)
+        throw new Error("Missing minimum viewport layout");
+      const sidebarBounds = sidebar.getBoundingClientRect();
+      const workspaceBounds = workspace.getBoundingClientRect();
+      return {
+        appDoesNotOverflow:
+          document.documentElement.scrollWidth <= window.innerWidth,
+        tableUsesLocalScroll: table.scrollWidth > container.clientWidth,
+        sidebarDoesNotCoverWorkspace:
+          sidebarBounds.right <= workspaceBounds.left,
+      };
+    });
+    expect(minimumViewportLayout).toEqual({
+      appDoesNotOverflow: true,
+      tableUsesLocalScroll: true,
+      sidebarDoesNotCoverWorkspace: true,
     });
     const frequencyRow = await browser.execute(() => {
       const row = Array.from(

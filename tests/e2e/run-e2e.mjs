@@ -23,6 +23,10 @@ const longFilenameFixtureFile = path.resolve(
   configurationDirectory,
   "../../engine/tests/fixtures/corpus/中国证券监督管理委员会关于准予中欧养老产业混合型证券投资基金注册的批复-without-any-spaces.txt",
 );
+const longEnglishFilenameFixtureFile = path.resolve(
+  configurationDirectory,
+  "../../engine/tests/fixtures/corpus/AnExtremelyLongEnglishFilenameWithoutAnySpacesThatMustNeverOverflowThePreviewPanel.txt",
+);
 const exportDirectory = path.join(fixtureDirectory, "中文导出");
 mkdirSync(exportDirectory);
 const exportedXlsx = path.join(exportDirectory, "词频结果.xlsx");
@@ -41,6 +45,7 @@ try {
           fixtureFile,
           secondFixtureFile,
           longFilenameFixtureFile,
+          longEnglishFilenameFixtureFile,
         ].join(path.delimiter),
         SCOPE_E2E_EXPORT_DIR: exportDirectory,
       },
