@@ -5,15 +5,26 @@ SCOPE 的研究工作台保留左侧 Corpus sidebar。右侧 Main Workspace 使�
 - 文本：当前文档 metadata、原始文本和 analysis text 状态。
 - 清洗：cleaning rules、before/after preview 和执行清洗。
 - 分词：jieba 模式、HMM、用户词典、重新分词和 token result。
-- 词频：Stopword Profile、resolved set、frequency result、Optimization Assistant 和 CSV/XLSX export。
+- 词频：Stopword Profile、resolved set、frequency result、候选停用词检查和 CSV/XLSX export。
 
-Corpus sidebar 不随标签切换消失，主要滚动区域由 workspace 内容承担。原生窗口 `minWidth` 与 CSS usable minimum 固定为 980px，以保证侧栏、统计信息和工具栏在 Windows 桌面尺寸下不互相遮挡。
+Corpus sidebar 不随标签切换消失，主要滚动区域由 workspace 内容承担。原生窗口默认尺寸为 1240 × 720，`minWidth` 与 CSS usable minimum 固定为 980px，以保证侧栏、统计信息和工具栏在 Windows 桌面尺寸下不互相遮挡。
+
+## Pipeline Status Bar
+
+项目概览下方提供紧凑、可点击的处理状态栏，而不是强制顺序的 stepper。它只提供方向感和 workspace navigation：点击“语料 / 清洗 / 分词 / 词频”分别切换到文本、清洗、分词、词频 workspace，不执行分析也不清除当前 React state。
+
+- 语料：`TotalDocumentCount`；
+- 清洗：`CleanedDocumentCount / TotalDocumentCount`；
+- 分词：`TokenizedDocumentCount / TotalDocumentCount`；
+- 词频：当前有效结果为“已计算”，不存在结果为“待计算”，停用词 pending draft 存在时为“需重新计算”。
+
+计数来自已存在的 project summary；词频状态只来自前端当前有效结果与 pending draft，不新增持久化字段或协议。
 
 ## Frequency 状态规则
 
 词频是右侧 Main Workspace 的直接内容，不在 corpus workspace 之后追加成长页面。用户触发任何分析任务时，当前工作区必须立即显示 `running` 状态；完成后显示 `success` 和参与文档/有效 token 数；失败显示 `error` 和可理解的重试提示。全局 notice 可以保留用于审计，但不能是唯一反馈位置。
 
-成功但参与文档为 0、以及参与文档大于 0 但过滤后 rows 为空，分别显示可操作的空结果说明，不得伪装成执行失败。Optimization Assistant 与 CSV/XLSX 入口始终可见，未完成有效词频分析时 disabled 并说明“请先完成词频分析”。
+成功但参与文档为 0、以及参与文档大于 0 但过滤后 rows 为空，分别显示可操作的空结果说明，不得伪装成执行失败。候选停用词检查与 CSV/XLSX 入口始终可见，未完成有效词频分析时 disabled 并说明“请先完成词频分析”。Frequency table 的表头不得换行；当窗口接近 980px minimum 时，只允许 `.frequency-table-wrap` 横向滚动，不能让整个应用横向溢出。
 
 ## Corpus-level execution
 
@@ -28,7 +39,7 @@ Frequency 的停用词编辑采用“已应用配置 + pending draft”。连续
 辅助工具不得改变主研究工作区的布局。长方法说明使用 Popover 或 Dialog，不得在页面内展开；独立助手工具使用由 Portal 渲染的右侧 Drawer / Dialog，打开后主结果保留在背景原位置。当前词频工作区据此提供：
 
 - “指标说明”使用可点击、可键盘操作的 Popover，支持外部点击和 Escape 关闭；
-- “停用词优化助手”使用右侧 Drawer，保留现有候选与 pending draft 逻辑；
+- “候选停用词检查”使用右侧 Drawer，保留现有候选与 pending draft 逻辑。它说明“高覆盖、高频”的人工检查候选，而不暗示系统自动优化或自动删除；
 - “查看实际词表”使用只读 Drawer，词语本身不可点击修改，只有明确的“保留该词”操作会进入 pending draft；
 - 长任务继续在 workspace 内显示状态；短成功反馈使用轻量 notification，不能替代错误和长任务状态。
 

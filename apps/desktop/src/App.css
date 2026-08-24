@@ -35,6 +35,66 @@
   color: var(--cobalt);
   border-bottom-color: var(--cobalt);
 }
+
+.pipeline-status {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.pipeline-stage {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.pipeline-arrow {
+  margin-right: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.pipeline-stage-button {
+  display: grid;
+  gap: 3px;
+  min-width: 106px;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.pipeline-stage-button span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.pipeline-stage-button strong {
+  font-size: 0.8rem;
+}
+
+.pipeline-stage-button:hover {
+  background: rgba(23, 75, 184, 0.06);
+}
+
+.pipeline-stage-button[aria-current="step"] {
+  border-color: rgba(23, 75, 184, 0.4);
+  background: rgba(23, 75, 184, 0.08);
+}
+
+.pipeline-stage-button.complete strong {
+  color: var(--green);
+}
+
+.pipeline-stage-button.stale strong {
+  color: #9a6825;
+}
 .feature-error {
   display: flex;
   justify-content: space-between;
@@ -49,7 +109,8 @@
 .frequency-panel {
   min-width: 0;
   padding: 0 22px 24px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .frequency-panel .panel-heading {
@@ -553,7 +614,7 @@ button {
 
 .corpus-workspace {
   display: grid;
-  grid-template-columns: minmax(300px, 0.8fr) minmax(390px, 1.2fr);
+  grid-template-columns: minmax(300px, 0.6fr) minmax(0, 1.4fr);
   min-height: 430px;
   border: 1px solid var(--ink);
   background: var(--paper);
@@ -576,6 +637,11 @@ button {
   margin: 0 0 5px;
 }
 
+.panel-heading > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .panel-heading h2 {
   margin: 0;
   overflow: hidden;
@@ -583,6 +649,10 @@ button {
   font-size: 1.15rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.preview-filename {
+  min-width: 0;
 }
 
 .panel-heading > span {
@@ -966,14 +1036,80 @@ button {
 }
 
 .candidate-row {
-  padding: 8px 0;
+  display: grid;
+  grid-template-columns: minmax(84px, 0.6fr) minmax(0, 1.4fr);
+  gap: 8px 14px;
+  align-items: center;
+  padding: 12px 0;
   border-top: 1px solid var(--rule);
   font-size: 0.8rem;
 }
 
-.candidate-row > span:first-child {
-  min-width: 100px;
+.candidate-row > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.candidate-status {
+  color: var(--green);
   font-weight: 700;
+}
+
+.candidate-rule-panel {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border-left: 3px solid var(--cobalt);
+  background: rgba(23, 75, 184, 0.06);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.candidate-rule-panel span,
+.candidate-rule-panel p {
+  color: var(--muted);
+}
+
+.candidate-rule-panel p {
+  margin: 0;
+}
+
+.frequency-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.frequency-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.frequency-table th,
+.frequency-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+}
+
+.frequency-table th {
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 0.74rem;
+  white-space: nowrap;
 }
 
 .button,

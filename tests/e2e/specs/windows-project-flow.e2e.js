@@ -56,6 +56,27 @@ describe("SCOPE Milestone 1A main flow", () => {
       async () => $("button*=batch-frequency-2.txt").isExisting(),
       { timeout: 60_000, interval: 1_000 },
     );
+    const longFilename =
+      "中国证券监督管理委员会关于准予中欧养老产业混合型证券投资基金注册的批复-without-any-spaces.txt";
+    await $("button*=" + longFilename).click();
+    const longFilenameLayout = await browser.execute(() => {
+      const filename = document.querySelector(
+        "[data-testid='preview-filename']",
+      );
+      const panel = document.querySelector(".preview-panel");
+      if (!filename || !panel)
+        throw new Error("Missing preview filename layout");
+      return {
+        title: filename.getAttribute("title"),
+        truncated: filename.scrollWidth > filename.clientWidth,
+        panelDoesNotOverflow: panel.scrollWidth <= panel.clientWidth,
+      };
+    });
+    expect(longFilenameLayout).toEqual({
+      title: longFilename,
+      truncated: true,
+      panelDoesNotOverflow: true,
+    });
     await $("button*=frequency-gui.txt").click();
     await expect($(".text-preview")).toHaveText(
       "基层治理需要政策支持。基层治理需要实践检验。",
@@ -63,6 +84,12 @@ describe("SCOPE Milestone 1A main flow", () => {
 
     // Keep the wiring smoke compact because each WebDriver command has a Tauri focus hook.
     await expect($("nav[aria-label='研究工作区']")).toExist();
+    await expect($("nav[aria-label='处理流程状态']")).toExist();
+    for (const stage of ["text", "cleaning", "tokenize", "frequency"]) {
+      await expect(
+        $("[data-testid='pipeline-stage-" + stage + "']"),
+      ).toBeDisplayed();
+    }
     const readWorkspace = () =>
       browser.execute(() => ({
         cleaning: Boolean(document.querySelector("[aria-label='文本清洗']")),
@@ -70,24 +97,33 @@ describe("SCOPE Milestone 1A main flow", () => {
         frequency: Boolean(document.querySelector("[aria-label='词频分析']")),
       }));
 
-    await $("button=清洗").click();
-    await browser.pause(300);
+    await $("[data-testid='pipeline-stage-cleaning']").click();
+    await browser.waitUntil(async () => (await readWorkspace()).cleaning, {
+      timeout: 15_000,
+      interval: 100,
+    });
     let workspaceState = await readWorkspace();
     expect(workspaceState).toEqual({
       cleaning: true,
       tokenize: false,
       frequency: false,
     });
-    await $("button=分词").click();
-    await browser.pause(300);
+    await $("[data-testid='pipeline-stage-tokenize']").click();
+    await browser.waitUntil(async () => (await readWorkspace()).tokenize, {
+      timeout: 15_000,
+      interval: 100,
+    });
     workspaceState = await readWorkspace();
     expect(workspaceState).toEqual({
       cleaning: false,
       tokenize: true,
       frequency: false,
     });
-    await $("button=词频").click();
-    await browser.pause(1_000);
+    await $("[data-testid='pipeline-stage-frequency']").click();
+    await browser.waitUntil(async () => (await readWorkspace()).frequency, {
+      timeout: 15_000,
+      interval: 100,
+    });
     workspaceState = await browser.execute(() => ({
       cleaning: Boolean(document.querySelector("[aria-label='文本清洗']")),
       tokenize: Boolean(document.querySelector("[aria-label='中文分词']")),
@@ -189,6 +225,36 @@ describe("SCOPE Milestone 1A main flow", () => {
     });
     expect(frequencyState.status).toBe("success");
     await expect($(".frequency-table")).toExist();
+    const frequencyTableLayout = await browser.execute(() => {
+      const headers = Array.from(
+        document.querySelectorAll(".frequency-table th"),
+      );
+      const container = document.querySelector(".frequency-table-wrap");
+      if (!container) throw new Error("Missing frequency table container");
+      return {
+        headers: headers.map((header) => header.textContent?.trim()),
+        allHeadersNoWrap: headers.every(
+          (header) => getComputedStyle(header).whiteSpace === "nowrap",
+        ),
+        localScrollContainer: getComputedStyle(container).overflowX === "auto",
+        exposedLexicalSort: Array.from(
+          document.querySelectorAll(".frequency-toolbar option"),
+        ).some((option) => option.textContent?.trim() === "词语"),
+      };
+    });
+    expect(frequencyTableLayout).toEqual({
+      headers: [
+        "词语",
+        "词频（TF）",
+        "文档频率（DF）",
+        "文档覆盖率",
+        "标准化词频（每万词，RF10K）",
+        "操作",
+      ],
+      allHeadersNoWrap: true,
+      localScrollContainer: true,
+      exposedLexicalSort: false,
+    });
     const frequencyRow = await browser.execute(() => {
       const row = Array.from(
         document.querySelectorAll(".frequency-table tbody tr"),
@@ -221,7 +287,10 @@ describe("SCOPE Milestone 1A main flow", () => {
     await expect(optimizationTrigger).toHaveAttribute("data-state", "open");
     await expect(optimizationDrawer).toBeDisplayed();
     await expect(optimizationDrawer).toHaveText(
-      expect.stringContaining("停用词优化助手"),
+      expect.stringContaining("候选停用词检查"),
+    );
+    await expect(optimizationDrawer).toHaveText(
+      expect.stringContaining("文档覆盖率 ≥ 80%"),
     );
     await expect($(".frequency-table")).toExist();
     await browser.keys("Escape");
@@ -262,6 +331,9 @@ describe("SCOPE Milestone 1A main flow", () => {
     await $("button=增加").click();
     await expect($(".stale-result-banner")).toHaveText(
       expect.stringContaining("待应用修改：1 项"),
+    );
+    await expect($("[data-testid='pipeline-stage-frequency']")).toHaveText(
+      expect.stringContaining("需重新计算"),
     );
     await expect($(".frequency-table")).toExist();
     await $("button=分词").click();

@@ -187,6 +187,49 @@ describe("Milestone 1A project workflow", () => {
     );
   });
 
+  it("truncates a long preview filename without losing its accessible full name", async () => {
+    const longFilename =
+      "中国证券监督管理委员会关于准予中欧养老产业混合型证券投资基金注册的批复-without-any-spaces.txt";
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "e2e_paths")
+        return Promise.reject(new Error("not available"));
+      if (command === "select_project_folder")
+        return Promise.resolve("/研究/基层治理访谈");
+      if (command === "project_open") {
+        return Promise.resolve({
+          type: "result",
+          result: {
+            project: { ...emptyProject, document_count: 1 },
+            documents: [{ ...document, original_filename: longFilename }],
+          },
+        });
+      }
+      if (command === "document_get") {
+        return Promise.resolve({
+          type: "result",
+          result: {
+            document: {
+              ...document,
+              original_filename: longFilename,
+              text: "长文件名测试文本",
+            },
+          },
+        });
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "打开已有项目" }));
+    await user.click(screen.getByText(longFilename));
+
+    const filename = await screen.findByTestId("preview-filename");
+    expect(filename.getAttribute("title")).toBe(longFilename);
+    expect(filename.textContent).toBe(longFilename);
+    expect(filename.className).toContain("preview-filename");
+  });
+
   it("renders a successful frequency response in the active workspace", async () => {
     let frequencyCalls = 0;
     const frequency = {
@@ -334,6 +377,23 @@ describe("Milestone 1A project workflow", () => {
     await user.click(screen.getByRole("button", { name: "创建项目" }));
     await user.click(screen.getByRole("button", { name: /访谈一\.txt/ }));
     await user.click(screen.getByRole("button", { name: "词频" }));
+    expect(screen.getByTestId("pipeline-stage-text").textContent).toBe(
+      "语料✓ 1 篇",
+    );
+    expect(screen.getByTestId("pipeline-stage-cleaning").textContent).toBe(
+      "清洗0 / 1",
+    );
+    expect(screen.getByTestId("pipeline-stage-tokenize").textContent).toBe(
+      "分词0 / 1",
+    );
+    expect(screen.getByTestId("pipeline-stage-frequency").textContent).toBe(
+      "词频待计算",
+    );
+    await user.click(screen.getByTestId("pipeline-stage-cleaning"));
+    expect(screen.getByLabelText("文本清洗")).toBeTruthy();
+    await user.click(screen.getByTestId("pipeline-stage-tokenize"));
+    expect(screen.getByLabelText("中文分词")).toBeTruthy();
+    await user.click(screen.getByTestId("pipeline-stage-frequency"));
     expect(
       (
         screen.getByRole("button", {
@@ -361,6 +421,7 @@ describe("Milestone 1A project workflow", () => {
         name: "标准化词频（每万词，RF10K）",
       }),
     ).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "词语" })).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "指标说明" }));
     expect(screen.getByRole("heading", { name: "词频指标说明" })).toBeTruthy();
@@ -408,9 +469,15 @@ describe("Milestone 1A project workflow", () => {
     await user.click(screen.getByRole("button", { name: "撤销保留：的" }));
     expect(screen.queryByText(/待应用修改/)).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "停用词优化助手" }));
+    await user.click(screen.getByRole("button", { name: "候选停用词检查" }));
     expect(
-      screen.getByRole("heading", { name: "停用词优化助手" }),
+      screen.getByRole("heading", { name: "候选停用词检查" }),
+    ).toBeTruthy();
+    expect(screen.getByText("当前候选规则")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "文档覆盖率 ≥ 80% · 最多显示 100 项 · 按词频（TF）从高到低排序",
+      ),
     ).toBeTruthy();
     expect(
       globalThis.document.querySelector(".frequency-table"),
@@ -418,6 +485,14 @@ describe("Milestone 1A project workflow", () => {
     const optimization = globalThis.document.querySelector(".drawer-content");
     expect(optimization).not.toBeNull();
     const candidateRows = optimization!.querySelectorAll(".candidate-row");
+    expect(
+      within(candidateRows[0] as HTMLElement).getByText("TF 8"),
+    ).toBeTruthy();
+    expect(
+      within(candidateRows[0] as HTMLElement).getByText(
+        "出现在 100.0% 的参与文档中",
+      ),
+    ).toBeTruthy();
     await user.click(
       within(candidateRows[0] as HTMLElement).getByRole("button", {
         name: "加入待处理停用词",
@@ -453,23 +528,26 @@ describe("Milestone 1A project workflow", () => {
       }),
     );
     const optimizationDrawer = screen.getByRole("dialog", {
-      name: "停用词优化助手",
+      name: "候选停用词检查",
     });
     await user.click(screen.getByRole("button", { name: "关闭" }));
     fireEvent.animationEnd(optimizationDrawer);
     await waitFor(() =>
       expect(
-        screen.queryByRole("heading", { name: "停用词优化助手" }),
+        screen.queryByRole("heading", { name: "候选停用词检查" }),
       ).toBeNull(),
     );
     expect(globalThis.document.activeElement).toBe(
-      screen.getByRole("button", { name: "停用词优化助手" }),
+      screen.getByRole("button", { name: "候选停用词检查" }),
     );
 
     await user.type(screen.getByLabelText("手动增加停用词"), "基层治理");
     await user.click(screen.getByRole("button", { name: "增加" }));
     expect(screen.getByRole("cell", { name: "基层治理" })).toBeTruthy();
     expect(screen.getByText("待应用修改：2 项")).toBeTruthy();
+    expect(screen.getByTestId("pipeline-stage-frequency").textContent).toBe(
+      "词频需重新计算",
+    );
     expect(
       screen.getByRole("button", { name: "导出 CSV" }).hasAttribute("disabled"),
     ).toBe(true);

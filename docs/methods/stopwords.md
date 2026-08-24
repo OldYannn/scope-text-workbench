@@ -16,9 +16,9 @@ TF（词频）是当前参与分析的全部文档中 token 的出现总次数�
 
 profile 由 `builtin_profile + optional text-type extension profiles + custom additions - custom exclusions` 解析为 resolved stopword set。当前不预填未经方法审查的文本类型词项，但模型已支持学术、访谈、政策、新闻和社交媒体扩展。项目保存 additions、exclusions、resolved set、SHA-256、profile ID/version、执行时间；用户导入的 UTF-8 TXT 会复制到项目 `stopwords/`，不依赖原始绝对路径。内置 v1 当前是 `draft`；标记为 `released` 后不会静默修改，变更必须创建 v1.1/v2 并写入 CHANGELOG。
 
-## 停用词优化助手
+## 候选停用词检查
 
-助手不是自动判定“无意义词”。它只显示尚未在 resolved set 中、且 TF 位于候选范围并满足 Document Coverage >= 80% 的高频广泛分布词，供研究者人工加入、保留、忽略或撤销。候选逻辑透明、可审计，不使用 LLM。
+候选停用词检查不是自动判定“无意义词”，也不会删除任何词。它只显示尚未在 resolved set 中、满足 `Document Coverage >= 80%` 的高频广泛分布词，供研究者人工加入、保留、忽略或撤销。Candidate rule v1 固定为 Coverage >= 80%、最多 100 项、按 TF descending；候选逻辑透明、可审计，不使用 LLM，且仍属于待多类型语料验证的方法候选规则。每个候选同时显示 TF、DF 与 Coverage，使研究者能够理解其“出现多且覆盖广”的推荐原因。
 
 ## 可复现与导出
 

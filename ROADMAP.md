@@ -127,11 +127,32 @@ Milestone 1B 已完成，分词只允许使用明确保存的 `analysis_text`；
 - [x] 建立 Primary / Secondary / Ghost / Icon Button primitives，以及统一 disabled、hover、active 和 `focus-visible` 状态
 - [x] 引入并固定 Radix Dialog / Popover / Tooltip 与 Lucide React；新增依赖许可证已记录
 - [x] 将词频指标说明迁移为 Radix Popover
-- [x] 将停用词优化助手和实际词表迁移为不挤压主结果的右侧 Drawer
+- [x] 将候选停用词检查和实际词表迁移为不挤压主结果的右侧 Drawer
 - [x] 保持 pending stopword draft、stale result、导出和重新计算语义
 - [x] 引入轻量成功 notification；错误和长任务状态仍保留在各自 workspace
 - [x] 扩展 React 测试与 Windows GUI E2E 脚本，覆盖 Popover / Drawer 与主表保留
-- [ ] 在本轮 commit 的 CI 和 Windows Project Owner UAT 中验证
+- [x] Project Owner UAT：PASS（Button hierarchy、Radix Popover、Tooltip、Drawer、Lucide icons 与 pending stopword interaction）
+
+### UX-1B — Desktop Workflow & Frequency UX Refinement
+
+本切片只修正 UX-1A UAT 暴露的桌面工作流问题；不修改 Python 分析算法、DB schema、Tauri ↔ Python protocol 或 SCOPE 停用词 profile 内容。
+
+- [x] 原生默认窗口调整为 1240 × 720，保持 980px 最小实用宽度
+- [x] 文本预览的长文件名只在展示层单行省略，并保留完整 accessible title
+- [x] Frequency table 表头保持单行；窄窗口只在表格容器内横向滚动
+- [x] 从 GUI 排序选项移除“词语”；相同数值仍使用 token 作为确定性的内部 tie-break
+- [x] 将“停用词优化助手”重新定位为“候选停用词检查”，明确人工检查、候选规则和 TF/DF/Coverage 理由
+- [x] 在项目工作区增加可点击的轻量 Pipeline Status Bar，显示语料、清洗、分词与词频的已计算／待计算／需重新计算状态
+- [x] 扩展 React 与 Windows GUI E2E 覆盖长文件名、频率表、候选规则、pending stale 和 Pipeline 导航
+- [ ] 完整跨平台 CI、Windows production artifact 与 Project Owner UX-1B UAT
+
+### Milestone 2C — TF-IDF / Keyword Extraction
+
+未来将把关键词提取与 Frequency Statistics 分开呈现。该切片才评估和实现 TF-IDF，不在 UX-1B 提前加入 TF-IDF 列或设置。
+
+### Milestone 2D — TextRank Keyword Extraction
+
+在 TF-IDF 方法、测试样本和研究者报告方式完成后，再单独评估 TextRank。UI 用词固定为“TextRank 得分 / TextRank Score”，不得称为“TextRank 指数”。
 
 后续将按照 `PROJECT_BRIEF.md` 依次推进中文分词与词频分析、共现分析、研究审计链、可选模型 Provider、实验性 AI 编码和首个 Public Alpha。
 

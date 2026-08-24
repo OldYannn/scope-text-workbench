@@ -251,7 +251,7 @@ type FrequencyWorkspaceProps = {
   stopwordInput: string;
   showResolvedStopwords: boolean;
   showOptimization: boolean;
-  sortKey: "tf" | "df" | "document_coverage" | "rf10k" | "token";
+  sortKey: "tf" | "df" | "document_coverage" | "rf10k";
   topN: string;
   ignoredCandidates: string[];
   documentCount: number;
@@ -509,7 +509,6 @@ function FrequencyWorkspace({
             <option value="df">DF</option>
             <option value="document_coverage">Coverage</option>
             <option value="rf10k">RF10K</option>
-            <option value="token">词语</option>
           </select>
         </label>
         <label>
@@ -535,7 +534,7 @@ function FrequencyWorkspace({
           disabled={!frequency || stopwordLoadError}
         >
           <WandSparkles aria-hidden="true" size={16} strokeWidth={2} />
-          停用词优化助手
+          候选停用词检查
         </Button>
         <Button
           variant="secondary"
@@ -602,17 +601,27 @@ function FrequencyWorkspace({
       </div>
       {!frequency && !stopwordLoadError && (
         <small className="frequency-action-hint">
-          请先完成词频分析，再使用停用词优化助手或导出。
+          请先完成词频分析，再使用候选停用词检查或导出。
         </small>
       )}
       <Drawer
         open={showOptimization}
         onOpenChange={onOptimizationOpenChange}
-        title="停用词优化助手"
-        description="基于当前词频结果生成候选"
+        title="候选停用词检查"
+        description="SCOPE 根据当前语料的词频与文档覆盖情况，筛选出可能属于项目通用语言噪声的词，供你集中检查。系统不会自动删除任何词。"
         returnFocusRef={optimizationTriggerRef}
         testId="optimization-drawer"
       >
+        <div className="candidate-rule-panel">
+          <strong>当前候选规则</strong>
+          <span>
+            文档覆盖率 ≥ 80% · 最多显示 100 项 · 按词频（TF）从高到低排序
+          </span>
+          <p>
+            这里不是完整词频表。SCOPE
+            仅显示满足当前候选规则的词，帮助你集中检查可能的项目通用噪声。
+          </p>
+        </div>
         {frequency?.candidates.map((row) => {
           const candidateStatus = stopwordAdditions.includes(row.token)
             ? "待加入停用词"
@@ -624,9 +633,14 @@ function FrequencyWorkspace({
           return (
             <div className="candidate-row" key={row.token}>
               <strong>{row.token}</strong>
-              <span>TF {row.tf}</span>
-              <span>DF {row.df}</span>
-              <span>Coverage {(row.document_coverage * 100).toFixed(1)}%</span>
+              <span className="candidate-metrics">
+                <span>TF {row.tf}</span>
+                <span>DF {row.df}</span>
+                <span>
+                  出现在 {(row.document_coverage * 100).toFixed(1)}%
+                  的参与文档中
+                </span>
+              </span>
               {candidateStatus ? (
                 <>
                   <span className="candidate-status">{candidateStatus}</span>
@@ -701,10 +715,10 @@ function FrequencyWorkspace({
             </thead>
             <tbody>
               {[...frequency.rows]
-                .sort((a, b) =>
-                  sortKey === "token"
-                    ? a.token.localeCompare(b.token, "zh")
-                    : Number(b[sortKey]) - Number(a[sortKey]),
+                .sort(
+                  (a, b) =>
+                    Number(b[sortKey]) - Number(a[sortKey]) ||
+                    a.token.localeCompare(b.token, "zh"),
                 )
                 .slice(0, topN === "all" ? undefined : Number(topN))
                 .map((row) => (
@@ -780,7 +794,7 @@ function App() {
   const [showResolvedStopwords, setShowResolvedStopwords] = useState(false);
   const [showOptimization, setShowOptimization] = useState(false);
   const [sortKey, setSortKey] = useState<
-    "tf" | "df" | "document_coverage" | "rf10k" | "token"
+    "tf" | "df" | "document_coverage" | "rf10k"
   >("tf");
   const [topN, setTopN] = useState("100");
   const [ignoredCandidates, setIgnoredCandidates] = useState<string[]>([]);
@@ -820,6 +834,11 @@ function App() {
       appliedExclusions.filter((word) => !stopwordExclusions.includes(word))
         .length
     : 0;
+  const frequencyPipelineState = hasPendingStopwordChanges
+    ? "需重新计算"
+    : frequencyStatus === "success" && frequency
+      ? "已计算"
+      : "待计算";
 
   useEffect(() => {
     if (!toast) return;
@@ -1720,6 +1739,63 @@ function App() {
         </article>
       </section>
 
+      <nav className="pipeline-status" aria-label="处理流程状态">
+        {(
+          [
+            ["text", "语料", `${project.document_count} 篇`, "complete"],
+            [
+              "cleaning",
+              "清洗",
+              `${project.cleaned_count ?? 0} / ${project.document_count}`,
+              (project.cleaned_count ?? 0) === project.document_count &&
+              project.document_count > 0
+                ? "complete"
+                : "pending",
+            ],
+            [
+              "tokenize",
+              "分词",
+              `${project.tokenized_count ?? 0} / ${project.document_count}`,
+              (project.tokenized_count ?? 0) === project.document_count &&
+              project.document_count > 0
+                ? "complete"
+                : "pending",
+            ],
+            [
+              "frequency",
+              "词频",
+              frequencyPipelineState,
+              frequencyPipelineState === "已计算"
+                ? "complete"
+                : frequencyPipelineState === "需重新计算"
+                  ? "stale"
+                  : "pending",
+            ],
+          ] as const
+        ).map(([key, label, value, state], index) => (
+          <div className="pipeline-stage" key={key}>
+            {index > 0 && (
+              <span className="pipeline-arrow" aria-hidden="true">
+                →
+              </span>
+            )}
+            <button
+              type="button"
+              className={`pipeline-stage-button ${state}`}
+              data-testid={`pipeline-stage-${key}`}
+              aria-current={workspaceTab === key ? "step" : undefined}
+              onClick={() => setWorkspaceTab(key)}
+            >
+              <span>{label}</span>
+              <strong>
+                {state === "complete" && key !== "frequency" ? "✓ " : ""}
+                {value}
+              </strong>
+            </button>
+          </div>
+        ))}
+      </nav>
+
       <p className="notice workspace-notice" aria-live="polite">
         {notice}
       </p>
@@ -1806,7 +1882,13 @@ function App() {
           <div className="panel-heading">
             <div>
               <p className="kicker">PREVIEW / 文本预览</p>
-              <h2>{selectedDocument?.original_filename ?? "选择一篇语料"}</h2>
+              <h2
+                className="preview-filename"
+                data-testid="preview-filename"
+                title={selectedDocument?.original_filename ?? "选择一篇语料"}
+              >
+                {selectedDocument?.original_filename ?? "选择一篇语料"}
+              </h2>
             </div>
             {selectedDocument && (
               <span>{formatCount(selectedDocument.character_count)} 字符</span>

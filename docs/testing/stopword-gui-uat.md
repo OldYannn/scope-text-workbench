@@ -21,8 +21,8 @@
 3. 增加一个词、删除该 addition；点击实际词表中的内置词将其加入 exclusions；关闭并重新打开项目，确认 additions/exclusions/resolved set 恢复。
 4. 导入 UTF-8 TXT 停用词，确认文件复制到项目内部，原始绝对路径不成为运行依赖。
 5. 运行词频，确认 raw / eligible / effective token count、TF、DF、Coverage、RF10K 与文档参与数可见。
-6. 切换 TF、DF、Coverage、RF10K、词语排序并测试 Top 50/100/500/全部。
-7. 打开可选停用词优化助手，确认候选文案和加入/保留/忽略操作；加入候选后确认只提示重新计算，不重新分词。
+6. 切换 TF、DF、Coverage、RF10K 排序并测试 Top 50/100/500/全部；“词语”不得作为 GUI 排序选项。
+7. 打开“候选停用词检查”，确认候选规则（Coverage >= 80%、最多 100 项、TF descending）、候选理由和加入/保留/忽略操作；加入候选后确认只提示重新计算，不重新分词。
 8. 导出 UTF-8 中文路径 CSV 和 XLSX，确认 CSV BOM，XLSX 包含“词频结果”和“分析说明”，且 manifest 与页面使用同一 resolved hash。
 
 ## UAT #2（Windows production artifact）
@@ -66,3 +66,21 @@ FAIL / UX：GUI 与 CSV 指标名不一致；逐项停用词编辑会立即清�
 - [ ] 批量分词只处理已有 analysis_text 且未分词的文档；未清洗文档明确跳过；使用当前 HMM/用户词典。
 - [ ] 项目概览的语料/已清洗/已分词计数正确，batch → frequency 闭环无需逐篇点击。
 - [ ] 重新清洗清除受影响 tokens；重新分词与清洗都使旧 frequency 失效，原始文本不变。
+
+## UX-1A Project Owner UAT
+
+结果：**PASS**。已通过 Button hierarchy、Radix Popover、Tooltip、Drawer、Lucide icons 与 stopword pending interaction。整体反馈为“比上一版明显改善，更像一个分析软件”。
+
+## UX-1B Project Owner UAT checklist
+
+基准：UX-1B commit（待 CI 与 Windows production artifact 完成后填写）。本轮为 Desktop Workflow & Frequency UX Refinement，不进入 TF-IDF、TextRank 或停用词 profile 方法变更。
+
+1. 在文本预览中打开中文、英文、无空格超长和中英混合文件名，确认标题单行省略、不撑破 workspace，悬停可看到完整文件名。
+2. 首次以默认 1240 × 720 窗口打开词频，确认六个核心表头单行可读；缩至 980px 时仅词频表横向滚动，sidebar 不覆盖 workspace。
+3. 确认排序只提供 TF、DF、Coverage、RF10K，默认仍为 TF descending，不出现“词语”。
+4. 打开“候选停用词检查”，确认其说明为人工集中检查而非自动删除，并显示固定候选规则与每项 TF/DF/Coverage。
+5. 在候选中执行加入、保留、忽略、撤销；确认旧表保留、pending stale 和禁用导出语义不变，应用后只执行一次重新计算。
+6. 确认 Pipeline Status Bar 显示语料、清洗、分词、词频状态；点击各阶段只切换 workspace，不自动执行任务。
+7. 在词频 pending draft 状态确认 Pipeline 词频显示“需重新计算”。
+
+Future IA：Frequency Statistics 保持 TF、DF、Coverage 与 RF10K；Milestone 2C 才引入 TF-IDF / Keyword Extraction，Milestone 2D 才评估 TextRank Keyword Extraction。

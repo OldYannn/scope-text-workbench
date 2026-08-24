@@ -19,6 +19,10 @@ const secondFixtureFile = path.resolve(
   configurationDirectory,
   "../../engine/tests/fixtures/corpus/batch-frequency-2.txt",
 );
+const longFilenameFixtureFile = path.resolve(
+  configurationDirectory,
+  "../../engine/tests/fixtures/corpus/中国证券监督管理委员会关于准予中欧养老产业混合型证券投资基金注册的批复-without-any-spaces.txt",
+);
 const exportDirectory = path.join(fixtureDirectory, "中文导出");
 mkdirSync(exportDirectory);
 const exportedXlsx = path.join(exportDirectory, "词频结果.xlsx");
@@ -33,7 +37,11 @@ try {
       env: {
         ...process.env,
         SCOPE_E2E_PARENT: fixtureDirectory,
-        SCOPE_E2E_FILES: [fixtureFile, secondFixtureFile].join(path.delimiter),
+        SCOPE_E2E_FILES: [
+          fixtureFile,
+          secondFixtureFile,
+          longFilenameFixtureFile,
+        ].join(path.delimiter),
         SCOPE_E2E_EXPORT_DIR: exportDirectory,
       },
       stdio: "inherit",

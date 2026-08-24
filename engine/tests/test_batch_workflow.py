@@ -150,7 +150,8 @@ class BatchWorkflowTest(unittest.TestCase):
             self.assertTrue(result["cancelled"])
             self.assertEqual(result["processed_document_count"], 1)
             self.assertEqual(progress, [(1, 3)])
-            detail = get_document(project_path, documents[0]["document_id"])["document"]
+            processed_document_id = result["entries"][0]["document_id"]
+            detail = get_document(project_path, processed_document_id)["document"]
             self.assertIn("基层治理需要政策支持", [item["token"] for item in detail["tokens"]])
 
     def test_reselecting_existing_dictionary_invalidates_mismatched_tokens(self) -> None:
