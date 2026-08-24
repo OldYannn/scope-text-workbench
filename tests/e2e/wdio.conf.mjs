@@ -43,8 +43,8 @@ export const config = {
   // Tauri execute API. The service's defensive window-focus checks may each
   // consume five seconds on CI, so the real multi-step project flow needs a
   // larger overall Mocha budget than the old single-screen smoke test. The
-  // stopword invalidation and second frequency run intentionally extend the
-  // production workflow beyond five minutes on Windows CI.
-  mochaOpts: { ui: "bdd", timeout: 600_000 },
+  // portal accessibility regression, stopword invalidation, second frequency
+  // run, and export validation can exceed ten minutes on Windows CI.
+  mochaOpts: { ui: "bdd", timeout: 900_000 },
   beforeTest: () => console.info("SCOPE_E2E_SPEC_STARTED"),
 };
