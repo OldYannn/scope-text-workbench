@@ -204,13 +204,12 @@ describe("SCOPE Milestone 1A main flow", () => {
     const metricsHelpTrigger = $("[data-testid='metrics-help-trigger']");
     const metricsHelpPopover = $("[data-testid='metrics-help-popover']");
     await metricsHelpTrigger.click();
-    await expect(metricsHelpTrigger).toHaveAttribute("data-state", "open");
     await expect(metricsHelpPopover).toBeDisplayed();
+    await expect(metricsHelpPopover).toHaveAttribute("data-state", "open");
     await expect(metricsHelpPopover).toHaveText(
       expect.stringContaining("RF10K(w) = TF(w)"),
     );
     await browser.keys("Escape");
-    await expect(metricsHelpTrigger).toHaveAttribute("data-state", "closed");
     await expect(metricsHelpPopover).not.toExist();
     expect(await metricsHelpTrigger.isFocused()).toBe(true);
 
