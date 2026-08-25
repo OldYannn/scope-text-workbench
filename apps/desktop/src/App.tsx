@@ -1857,6 +1857,8 @@ function App() {
               {documents.map((document) => (
                 <li key={document.document_id}>
                   <button
+                    data-testid="document-list-item"
+                    data-document-filename={document.original_filename}
                     className={
                       selectedDocument?.document_id === document.document_id
                         ? "active"

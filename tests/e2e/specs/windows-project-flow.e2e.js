@@ -61,7 +61,7 @@ describe("SCOPE Milestone 1A main flow", () => {
       "AnExtremelyLongEnglishFilenameWithoutAnySpacesThatMustNeverOverflowThePreviewPanel.txt",
     ];
     for (const longFilename of longFilenames) {
-      await $("button*=" + longFilename).click();
+      await $(`[data-document-filename="${longFilename}"]`).click();
       const longFilenameLayout = await browser.execute(() => {
         const filename = document.querySelector(
           "[data-testid='preview-filename']",
