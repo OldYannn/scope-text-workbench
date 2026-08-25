@@ -248,7 +248,6 @@
 }
 
 body {
-  min-width: 980px;
   min-height: 100vh;
   margin: 0;
   background:
@@ -280,7 +279,6 @@ button {
   min-height: 100vh;
   margin: 0 auto;
   padding: 28px clamp(24px, 4vw, 64px) 36px;
-  min-width: 980px;
 }
 
 .topbar {
