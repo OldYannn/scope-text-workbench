@@ -19,3 +19,8 @@ build/
 apps/desktop/src-tauri/binaries/scope-engine-dev-*
 
 *.log
+
+# Local-only research validation corpora, reports, and machine-specific config.
+validation-corpora/
+validation-output/
+validation/stopwords/config.local.json

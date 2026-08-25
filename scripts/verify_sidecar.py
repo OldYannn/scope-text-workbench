@@ -64,6 +64,84 @@ def verify(sidecar_path: Path) -> None:
         source_path.write_text(
             "基层治理需要政策支持。基层治理需要实践检验。", encoding="utf-8"
         )
+        validation_root = project_parent / "validation-corpora"
+        validation_texts = {
+            "policy": "根据政策安排，基层治理需要通过协商进行实施。",
+            "interview": "我认为社区工作需要通过协商进行。",
+            "academic": "本研究根据访谈材料进行分析，因此认为政策执行重要。",
+        }
+        for corpus, text in validation_texts.items():
+            corpus_directory = validation_root / corpus / "topic-a"
+            corpus_directory.mkdir(parents=True)
+            (corpus_directory / "synthetic.txt").write_text(text, encoding="utf-8")
+        validation_output = project_parent / "validation-output"
+        validation_config = project_parent / "validation-config.json"
+        validation_config.write_text(
+            json.dumps(
+                {
+                    "corpora": {
+                        corpus: {"path": str(validation_root / corpus)}
+                        for corpus in validation_texts
+                    },
+                    "output_path": str(validation_output),
+                    "top_n": 3,
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        validation = subprocess.run(
+            [str(sidecar_path), "--stopword-validation-config", str(validation_config)],
+            capture_output=True,
+            check=False,
+            env=environment,
+            text=True,
+            encoding="utf-8",
+            errors="strict",
+            timeout=30,
+        )
+        if validation.returncode != 0:
+            raise AssertionError(
+                f"Frozen stopword validation failed: {validation.stdout} {validation.stderr}"
+            )
+        validation_manifest = json.loads(
+            (validation_output / "validation-manifest.json").read_text(encoding="utf-8")
+        )
+        if (
+            validation_manifest["stopword_configs"]["scope_draft"]["resolved_count"]
+            != 86
+        ):
+            raise AssertionError(
+                "Frozen validation did not resolve the SCOPE Draft profile"
+            )
+        if str(project_parent) in json.dumps(validation_manifest, ensure_ascii=False):
+            raise AssertionError("Frozen validation manifest leaked an absolute path")
+        validation_workbook = load_workbook(
+            validation_output / "stopword-validation.xlsx",
+            read_only=True,
+            data_only=True,
+        )
+        try:
+            if validation_workbook.sheetnames[:4] != [
+                "语料概览",
+                "政策_NoStop",
+                "政策_SCOPE",
+                "政策_goto456",
+            ]:
+                raise AssertionError(
+                    f"Frozen validation XLSX has wrong sheets: {validation_workbook.sheetnames}"
+                )
+            if list(validation_workbook["政策_SCOPE"].values)[1] != (
+                1,
+                "协商",
+                1,
+                1,
+                1,
+                1428.571428571428,
+            ):
+                raise AssertionError("Frozen validation XLSX has wrong fixed data")
+        finally:
+            validation_workbook.close()
         input_lines = [
             request("frozen-describe", "system.describe", {}),
             request("frozen-profiles", "stopwords.profiles", {}),

@@ -1,0 +1,23 @@
+{
+  "corpora": {
+    "policy": {
+      "path": "../../validation-corpora/policy",
+      "notes": "可选：仅记录由研究者提供的语料说明。"
+    },
+    "interview": {
+      "path": "../../validation-corpora/interview"
+    },
+    "academic": {
+      "path": "../../validation-corpora/academic"
+    }
+  },
+  "output_path": "../../validation-output",
+  "top_n": 100,
+  "cleaning": {
+    "normalize_whitespace": true,
+    "normalize_newlines": true,
+    "remove_urls": true,
+    "strip_html": true,
+    "punctuation_mode": "keep"
+  }
+}

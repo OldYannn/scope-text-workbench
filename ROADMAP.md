@@ -83,6 +83,17 @@ Milestone 1B 已完成，分词只允许使用明确保存的 `analysis_text`；
 
 文本类型扩展 profile 仅完成数据模型，待方法审查后再发布词项。
 
+### Stopword v1 Draft Method Validation
+
+- 当前阶段验证状态：Milestone 2B **PASS**；UX-1A **PASS**；UX-1B **PASS**。既有跨平台 CI 和项目负责人 UAT backlog 仍按原条目单独追踪。
+- 本轮本地证据：Python 34 项、Ruff、Mypy、前端 production build、Rust fmt/clippy/test 与 macOS arm64 frozen-sidecar Harness 验证均为 **PASS**。本提交 CI：**NOT RUN**（推送 `main` 后触发）；Windows x64、macOS arm64/x64 production build：**NOT RUN**；Windows GUI E2E、Computer Use GUI Test、Project Owner UAT：**NOT RUN**。
+- [x] 建立本地只读 Validation Harness：政策、访谈、学术三类 corpus 分别比较 No Stopwords、SCOPE Draft 与固定 goto456 资源
+- [x] 输出 CSV、XLSX、事实性 Markdown summary、机器可读 manifest、人工复核矩阵与争议词 watchlist
+- [x] 对合成 fixtures 覆盖确定性 hash、UTF-8 BOM、XLSX round-trip、隐私边界、重复运行与 UTF-8 失败
+- [ ] 由项目负责人提供真实三类 corpus 并完成方法复核和 release decision
+
+当前状态是 **Validation Harness 已准备完成，可以开始真实语料方法验证**；SCOPE 中文通用 v1 仍为 `draft`，此项不改变 Milestone 2C / 2D 的实现状态。
+
 ### Milestone 2B.1 — Stopword Product Closure & Curation
 
 - [x] 四套 goto456/stopwords 完整 upstream snapshot、normalized runtime profile 和 hash/count metadata

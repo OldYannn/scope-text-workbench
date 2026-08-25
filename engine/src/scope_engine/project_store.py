@@ -363,7 +363,7 @@ def open_project(project_path_value: object) -> dict[str, Any]:
     }
 
 
-def _decode_txt(data: bytes) -> tuple[str, str]:
+def decode_txt(data: bytes) -> tuple[str, str]:
     encoding = "utf-8-sig" if data.startswith(b"\xef\xbb\xbf") else "utf-8"
     try:
         return data.decode(encoding, errors="strict"), encoding
@@ -400,7 +400,7 @@ def _import_one(
     except OSError:
         return _failed_entry(source, "file_read_failed", "The file could not be read")
     try:
-        text, encoding = _decode_txt(data)
+        text, encoding = decode_txt(data)
     except ProjectError as error:
         return _failed_entry(source, error.code, error.message)
 
@@ -591,6 +591,16 @@ def _clean_text(text: str, rules: dict[str, Any]) -> str:
     return value
 
 
+def clean_text(text: str, rules: dict[str, Any] | None = None) -> tuple[str, dict[str, Any]]:
+    """Run the production text-cleaning pipeline without creating a project."""
+    if not isinstance(text, str):
+        raise ProjectError("invalid_params", "text cleaning requires text")
+    if rules is not None and not isinstance(rules, dict):
+        raise ProjectError("invalid_params", "text cleaning requires a rules object")
+    normalized_rules = {**DEFAULT_CLEANING_RULES, **(rules or {})}
+    return _clean_text(text, normalized_rules), normalized_rules
+
+
 def clean_preview(project_path_value: object, document_id: object, rules: object) -> dict[str, Any]:
     if not isinstance(rules, dict):
         raise ProjectError("invalid_params", "clean.preview requires a rules object")
@@ -602,8 +612,7 @@ def clean_preview(project_path_value: object, document_id: object, rules: object
         ).fetchone()
     if row is None:
         raise ProjectError("document_not_found", "The selected document is not in this project")
-    normalized_rules = {**DEFAULT_CLEANING_RULES, **rules}
-    cleaned = _clean_text(row["text"], normalized_rules)
+    cleaned, normalized_rules = clean_text(row["text"], rules)
     return {
         "original_text": row["text"],
         "analysis_text": cleaned,
@@ -837,6 +846,22 @@ def _tokenize(
         for index, token in enumerate(tokenizer.cut(text, HMM=bool(config["hmm"])))
         if token
     ]
+
+
+def tokenize_text(text: str, config: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Run SCOPE's default tokenizer without a project user dictionary."""
+    if not isinstance(text, str):
+        raise ProjectError("invalid_params", "tokenization requires text")
+    if config is not None and not isinstance(config, dict):
+        raise ProjectError("invalid_params", "tokenization requires a config object")
+    normalized = {**DEFAULT_TOKENIZATION_CONFIG, **(config or {})}
+    if normalized["mode"] != "accurate":
+        raise ProjectError("unsupported_tokenization_mode", "当前版本只支持标准分词（精确模式）")
+    if normalized["dictionary_id"] is not None:
+        raise ProjectError(
+            "invalid_params", "standalone tokenization does not support a project user dictionary"
+        )
+    return _tokenize(text, normalized, None)
 
 
 def tokenize_preview(
