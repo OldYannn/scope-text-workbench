@@ -259,6 +259,12 @@ describe("SCOPE Milestone 1A main flow", () => {
       localScrollContainer: true,
       exposedLexicalSort: false,
     });
+    await browser.setWindowSize(1240, 720);
+    await browser.waitUntil(
+      async () =>
+        (await browser.execute(() => window.innerWidth)) >= 1200,
+      { timeout: 15_000, interval: 100 },
+    );
     const defaultViewportLayout = await browser.execute(() => {
       const shell = document.querySelector(".app-shell");
       const table = document.querySelector(".frequency-table");
